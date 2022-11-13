@@ -243,7 +243,7 @@ def fit_loglinear(data_cat, echo_times, adaptive_mask, report=True):
             "used to determine which echoes would be used to estimate T2* "
             "and S0."
         )
-    n_samp, n_echos, n_vols = data_cat.shape
+    n_samp, _, n_vols = data_cat.shape # MAKE _ FOR CLARITY
 
     echos_to_run = np.unique(adaptive_mask)
     # When there is one good echo, use two
@@ -266,7 +266,7 @@ def fit_loglinear(data_cat, echo_times, adaptive_mask, report=True):
         # Create echo masks to assign values to limited vs full maps later
         echo_mask = np.squeeze(echo_masks[..., i_echo])
         echo_mask[adaptive_mask == echo_num] = True
-        echo_masks[..., i_echo] = echo_mask
+        #echo_masks[..., i_echo] = echo_mask # THIS LINE SHOULD BE REDUNDANT
 
         # perform log linear fit of echo times against MR signal
         # make DV matrix: samples x (time series * echos)
