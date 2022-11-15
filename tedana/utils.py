@@ -85,11 +85,11 @@ def make_adaptive_mask(data, mask=None, getsum=False, threshold=1):
 
     # if multiple samples were extracted per echo, keep the one w/the highest signal
     if lthrs.ndim > 1:
-        lthrs = lthrs[:, lthrs.sum(axis=0).argmax()]
+        lthrs = lthrs[:, lthrs.sum(axis=0).argmax()] # MAYBE ADD NP.SQUEEZE HERE TOO?
 
     # determine samples where absolute value is greater than echo-specific thresholds
     # and count # of echos that pass criterion
-    masksum = (np.abs(echo_means) > lthrs).sum(axis=-1)
+    masksum = (np.abs(echo_means) > lthrs).sum(axis=-1) # IS THIS CORRECT (SINCE ONE IS TRANSPOSED)? I THINK NP.SQUEEZE MAKES IT SO
 
     if mask is None:
         # make it a boolean mask to (where we have at least `threshold` echoes with good signal)

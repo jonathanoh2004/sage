@@ -229,3 +229,75 @@ def make_optcom(data, tes, adaptive_mask, t2s=None, combmode="t2s", verbose=True
         report = False
 
     return combined
+
+def make_optcom_sage(data, tes, t2s=None, combmode="t2s", verbose=True):
+    """
+    Optimally combine BOLD data across TEs, using only those echos with reliable signal
+    across at least three echos. If the number of echos providing reliable signal is greater
+    than three but less than the total number of collected echos, we assume that later
+    echos do not provided meaningful signal.
+
+    Parameters
+    ----------
+    data : (S x E x T) :obj:`numpy.ndarray`
+        Concatenated BOLD data.
+    tes : (E,) :obj:`numpy.ndarray`
+        Array of TEs, in seconds.
+    t2s : (S [x T]) :obj:`numpy.ndarray` or None, optional
+        Estimated T2* values. Only required if combmode = 't2s'.
+        Default is None.
+    combmode : {'t2s', 'paid'}, optional
+        How to combine data. Either 'paid' or 't2s'. If 'paid', argument 't2s'
+        is not required. Default is 't2s'.
+    verbose : :obj:`bool`, optional
+        Whether to print status updates. Default is True.
+
+    Returns
+    -------
+    combined : (S x T) :obj:`numpy.ndarray`
+        Optimally combined data.
+
+    References
+    ----------
+    .. footbibliography::
+
+    See Also
+    --------
+    :func:`tedana.utils.make_adaptive_mask` : The function used to create the ``adaptive_mask``
+                                              parameter.
+    """
+    if data.ndim != 3:
+        raise ValueError("Input data must be 3D (S x E x T)")
+
+    if len(tes) != data.shape[1]:
+        raise ValueError(
+            "Number of echos provided does not match second "
+            "dimension of input data: {0} != "
+            "{1}".format(len(tes), data.shape[1])
+        )
+
+    if combmode == "t2s" and t2s is None:
+        raise ValueError("Argument 't2s' must be supplied if 'combmode' is set to 't2s'.")
+
+    if t2s.ndim == 1:
+        msg = "Optimally combining data with voxel-wise T2* estimates"
+    else:
+        msg = "Optimally combining data with voxel- and volume-wise T2* estimates"
+    # LGR.info(msg)
+
+    tes = np.array(tes)[np.newaxis, ...]  # (1 x E) array_like
+    combined = np.zeros((data.shape[0], data.shape[2]))
+            
+    voxel_idx = np.where(0 == 0)[0] # CHANGE
+    echo_num = 0 # CHANGE
+
+    t2s_ = t2s[..., np.newaxis]  # add singleton
+
+    combined[voxel_idx, :] = _combine_t2s(
+        data[voxel_idx, :echo_num, :],
+        tes[:, :echo_num],
+        t2s_[voxel_idx, ...],
+        report=True,
+    )
+
+    return combined
