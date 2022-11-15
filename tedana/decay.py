@@ -75,46 +75,6 @@ def monoexponential(tes, s0, t2star):
     """
     return s0 * np.exp(-tes / t2star)
 
-def monoexponential_sage_I(tes, s0_I, t2star):
-    """
-    Specifies a monoexponential model for use with scipy curve fitting
-
-    Parameters
-    ----------
-    tes : (E,) :obj:`list`
-        Echo times
-    s0 : :obj:`float`
-        Initial signal parameter
-    t2star : :obj:`float`
-        T2* parameter
-
-    Returns
-    -------
-    :obj:`float`
-        Predicted signal
-    """
-    return s0_I * np.exp(-tes / t2star)
-
-def monoexponential_sage_II(tes, s0_II, t2):
-    """
-    Specifies a monoexponential model for use with scipy curve fitting
-
-    Parameters
-    ----------
-    tes : (E,) :obj:`list`
-        Echo times
-    s0 : :obj:`float`
-        Initial signal parameter
-    t2star : :obj:`float`
-        T2* parameter
-
-    Returns
-    -------
-    :obj:`float`
-        Predicted signal
-    """
-    return s0_II * np.exp(-tes / t2)
-
 
 def fit_monoexponential(data_cat, echo_times, adaptive_mask, report=True):
     """
@@ -511,7 +471,9 @@ def fit_decay_ts(data, tes, mask, adaptive_mask, fittype):
 
     return t2s_limited_ts, s0_limited_ts, t2s_full_ts, s0_full_ts
 
+
 ######################################## SAGE ########################################
+
 
 def fit_decay_sage(data, tes, mask, adaptive_mask, fittype, report=True):
     """
@@ -663,7 +625,10 @@ def fit_monoexponential_sage(data_cat, echo_times, adaptive_mask, report=True):
     data_2d_t2 = data_cat[:, echo_times_idx_t2, :].reshape(n_samp, -1).T
     echo_times_1d = np.repeat(echo_times, n_vols)
 
-    iterable = [(data_2d_t2star, echo_times_idx_t2star, t2star_map, s0_I_map, monoexponential_sage_I, t2star_map, s0_I_map),(data_2d_t2, echo_times_idx_t2, t2_map, s0_II_map, monoexponential_sage_II, t2_map, s0_II_map)]
+    iterable = [(data_2d_t2star, echo_times_idx_t2star, t2star_map, s0_I_map,
+                    lambda tes, s0_I, t2star: s0_I * np.exp(-tes / t2star), t2star_map, s0_I_map),
+                (data_2d_t2, echo_times_idx_t2, t2_map, s0_II_map,
+                    lambda tes, s0_II, t2: s0_II * np.exp(-tes / t2), t2_map, s0_II_map)]
 
     # perform a monoexponential fit of echo times against MR signal
     # using loglin estimates as initial starting points for fit    
