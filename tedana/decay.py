@@ -472,63 +472,13 @@ def fit_decay_ts(data, tes, mask, adaptive_mask, fittype):
     return t2s_limited_ts, s0_limited_ts, t2s_full_ts, s0_full_ts
 
 
+######################################################################################
 ######################################## SAGE ########################################
+######################################################################################
 
 
-def fit_decay_sage(data, tes, mask, adaptive_mask, fittype, report=True):
-    """
-    Fit voxel-wise monoexponential decay models to `data`
+def fit_decay_sage(data, tes, fittype, report=True):
 
-    Parameters
-    ----------
-    data : (S x E [x T]) array_like
-        Multi-echo data array, where `S` is samples, `E` is echos, and `T` is
-        time
-    tes : (E,) :obj:`list`
-        Echo times
-    mask : (S,) array_like
-        Boolean array indicating samples that are consistently (i.e., across
-        time AND echoes) non-zero
-    adaptive_mask : (S,) array_like
-        Array where each value indicates the number of echoes with good signal
-        for that voxel. This mask may be thresholded; for example, with values
-        less than 3 set to 0.
-        For more information on thresholding, see `make_adaptive_mask`.
-    fittype : {loglin, curvefit}
-        The type of model fit to use
-    report : bool, optional
-        Whether to log a description of this step or not. Default is True.
-
-    Returns
-    -------
-    t2s_limited : (S,) :obj:`numpy.ndarray`
-        Limited T2* map. The limited map only keeps the T2* values for data
-        where there are at least two echos with good signal.
-    s0_limited : (S,) :obj:`numpy.ndarray`
-        Limited S0 map.  The limited map only keeps the S0 values for data
-        where there are at least two echos with good signal.
-    t2s_full : (S,) :obj:`numpy.ndarray`
-        Full T2* map. For voxels affected by dropout, with good signal from
-        only one echo, the full map uses the T2* estimate from the first two
-        echoes.
-    s0_full : (S,) :obj:`numpy.ndarray`
-        Full S0 map. For voxels affected by dropout, with good signal from
-        only one echo, the full map uses the S0 estimate from the first two
-        echoes.
-
-    Notes
-    -----
-    This function replaces infinite values in the :math:`T_2^*` map with 500 and
-    :math:`T_2^*` values less than or equal to zero with 1.
-    Additionally, very small :math:`T_2^*` values above zero are replaced with a floor
-    value to prevent zero-division errors later on in the workflow.
-    It also replaces NaN values in the :math:`S_0` map with 0.
-
-    See Also
-    --------
-    :func:`tedana.utils.make_adaptive_mask` : The function used to create the ``adaptive_mask``
-                                              parameter.
-    """
     if data.shape[1] != len(tes):
         raise ValueError(
             "Second dimension of data ({0}) does not match number "
@@ -539,17 +489,13 @@ def fit_decay_sage(data, tes, mask, adaptive_mask, fittype, report=True):
     if data.ndim == 2:
         data = data[:, :, None]
 
-    # Mask the inputs
-    data_masked = data[mask, :, :]
-    adaptive_mask_masked = adaptive_mask[mask]
-
     if fittype == "loglin":
         t2star_map, s0_I_map, t2_map, s0_II_map = fit_loglinear_sage(
-            data_masked, tes, adaptive_mask_masked, report=report
+            data, tes, report=report
         )
     elif fittype == "curvefit":
         t2star_map, s0_I_map, t2_map, s0_II_map = fit_monoexponential_sage(
-            data_masked, tes, adaptive_mask_masked, report=report
+            data, tes, report=report
         )
     else:
         raise ValueError("Unknown fittype option: {}".format(fittype))
@@ -578,43 +524,11 @@ def fit_decay_sage(data, tes, mask, adaptive_mask, fittype, report=True):
     return t2star_map, s0_I_map, t2_map, s0_II_map
 
 
-def fit_monoexponential_sage(data_cat, echo_times, adaptive_mask, report=True):
-    """
-    Fit monoexponential decay model with nonlinear curve-fitting.
-
-    Parameters
-    ----------
-    data_cat : (S x E x T) :obj:`numpy.ndarray`
-        Multi-echo data.
-    echo_times : (E,) array_like
-        Echo times in milliseconds.
-    adaptive_mask : (S,) :obj:`numpy.ndarray`
-        Array where each value indicates the number of echoes with good signal
-        for that voxel. This mask may be thresholded; for example, with values
-        less than 3 set to 0.
-        For more information on thresholding, see `make_adaptive_mask`.
-    report : bool, optional
-        Whether to log a description of this step or not. Default is True.
-
-    Returns
-    -------
-    t2s_limited, s0_limited, t2s_full, s0_full : (S,) :obj:`numpy.ndarray`
-        T2* and S0 estimate maps.
-
-    Notes
-    -----
-    This method is slower, but more accurate, than the log-linear approach.
-
-    See Also
-    --------
-    :func:`tedana.utils.make_adaptive_mask` : The function used to create the ``adaptive_mask``
-                                              parameter.
-    """
-
+def fit_monoexponential_sage(data_cat, echo_times, report=True):
     n_samp, _, n_vols = data_cat.shape
 
     t2star_map, s0_I_map, t2_map, s0_II_map = fit_loglinear_sage(
-        data_cat, echo_times, adaptive_mask, report=False
+        data_cat, echo_times, report=False
     )
 
     mid_echo_time = echo_times[-1] / 2
@@ -656,47 +570,7 @@ def fit_monoexponential_sage(data_cat, echo_times, adaptive_mask, report=True):
     return t2star_map, s0_I_map, t2_map, s0_II_map
 
 
-def fit_loglinear_sage(data_cat, echo_times, adaptive_mask, report=True):
-    """Fit monoexponential decay model with log-linear regression.
-
-    The monoexponential decay function is fitted to all values for a given
-    voxel across TRs, per TE, to estimate voxel-wise :math:`S_0` and :math:`T_2^*`.
-    At a given voxel, only those echoes with "good signal", as indicated by the
-    value of the voxel in the adaptive mask, are used.
-    Therefore, for a voxel with an adaptive mask value of five, the first five
-    echoes would be used to estimate T2* and S0.
-
-    Parameters
-    ----------
-    data_cat : (S x E x T) :obj:`numpy.ndarray`
-        Multi-echo data. S is samples, E is echoes, and T is timepoints.
-    echo_times : (E,) array_like
-        Echo times in milliseconds.
-    adaptive_mask : (S,) :obj:`numpy.ndarray`
-        Array where each value indicates the number of echoes with good signal
-        for that voxel. This mask may be thresholded; for example, with values
-        less than 3 set to 0.
-        For more information on thresholding, see `make_adaptive_mask`.
-    report : :obj:`bool`, optional
-        Whether to log a description of this step or not. Default is True.
-
-    Returns
-    -------
-    t2star_map, s0_I_map, t2_map, s0_II_map: (S,) :obj:`numpy.ndarray`
-        T2*, T2, and S0_I, and S0_II estimate maps.
-
-    Notes
-    -----
-    The approach used in this function involves transforming the raw signal values
-    (:math:`log(|data| + 1)`) and then fitting a line to the transformed data using
-    ordinary least squares.
-    This results in two parameter estimates: one for the slope  and one for the intercept.
-    The slope estimate is inverted (i.e., 1 / slope) to get  :math:`T_2^*`,
-    while the intercept estimate is exponentiated (i.e., e^intercept) to get :math:`S_0`.
-
-    This method is faster, but less accurate, than the nonlinear approach.
-    """
-
+def fit_loglinear_sage(data_cat, echo_times, report=True):
     n_samp, _, n_vols = data_cat.shape
 
     mid_echo_time = echo_times[-1] / 2
@@ -730,52 +604,7 @@ def fit_loglinear_sage(data_cat, echo_times, adaptive_mask, report=True):
     return t2star_map, s0_I_map, t2_map, s0_II_map
 
 
-
-
-def fit_decay_ts_sage(data, tes, mask, adaptive_mask, fittype):
-    """
-    Fit voxel- and timepoint-wise monoexponential decay models to `data`
-
-    Parameters
-    ----------
-    data : (S x E x T) array_like
-        Multi-echo data array, where `S` is samples, `E` is echos, and `T` is
-        time
-    tes : (E,) :obj:`list`
-        Echo times
-    mask : (S,) array_like
-        Boolean array indicating samples that are consistently (i.e., across
-        time AND echoes) non-zero
-    adaptive_mask : (S,) array_like
-        Array where each value indicates the number of echoes with good signal
-        for that voxel. This mask may be thresholded; for example, with values
-        less than 3 set to 0.
-        For more information on thresholding, see `make_adaptive_mask`.
-    fittype : :obj: `str`
-        The type of model fit to use
-
-    Returns
-    -------
-    t2s_limited_ts : (S x T) :obj:`numpy.ndarray`
-        Limited T2* map. The limited map only keeps the T2* values for data
-        where there are at least two echos with good signal.
-    s0_limited_ts : (S x T) :obj:`numpy.ndarray`
-        Limited S0 map.  The limited map only keeps the S0 values for data
-        where there are at least two echos with good signal.
-    t2s_full_ts : (S x T) :obj:`numpy.ndarray`
-        Full T2* timeseries.  For voxels affected by dropout, with good signal
-        from only one echo, the full timeseries uses the single echo's value
-        at that voxel/volume.
-    s0_full_ts : (S x T) :obj:`numpy.ndarray`
-        Full S0 timeseries. For voxels affected by dropout, with good signal
-        from only one echo, the full timeseries uses the single echo's value
-        at that voxel/volume.
-
-    See Also
-    --------
-    :func:`tedana.utils.make_adaptive_mask` : The function used to create the ``adaptive_mask``
-                                              parameter.
-    """
+def fit_decay_ts_sage(data, tes, fittype):
     n_samples, _, n_vols = data.shape
     tes = np.array(tes)
 
@@ -787,7 +616,7 @@ def fit_decay_ts_sage(data, tes, mask, adaptive_mask, fittype):
     report = True
     for vol in range(n_vols):
         t2star_map, s0_I_map, t2_map, s0_II_map = fit_decay_sage(
-            data[:, :, vol][:, :, None], tes, mask, adaptive_mask, fittype, report=report
+            data[:, :, vol][:, :, None], tes, fittype, report=report
         )
         t2star_map_vols[:, vol] = t2star_map
         s0_I_map_vols[:, vol] = s0_I_map

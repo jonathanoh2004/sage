@@ -230,42 +230,8 @@ def make_optcom(data, tes, adaptive_mask, t2s=None, combmode="t2s", verbose=True
 
     return combined
 
-def make_optcom_sage(data, echo_times, t2star_map=None, s0_I_map=None, t2_map=None, so_II_map=None, verbose=True):
-    """
-    Optimally combine BOLD data across TEs, using only those echos with reliable signal
-    across at least three echos. If the number of echos providing reliable signal is greater
-    than three but less than the total number of collected echos, we assume that later
-    echos do not provided meaningful signal.
 
-    Parameters
-    ----------
-    data : (S x E x T) :obj:`numpy.ndarray`
-        Concatenated BOLD data.
-    tes : (E,) :obj:`numpy.ndarray`
-        Array of TEs, in seconds.
-    t2star_map : (S [x T]) :obj:`numpy.ndarray` or None, optional
-        Estimated T2* values.
-        Default is None.
-    t2_map : (S [x T]) :obj:`numpy.ndarray` or None, optional
-        Estimated T2 values.
-        Default is None.
-    verbose : :obj:`bool`, optional
-        Whether to print status updates. Default is True.
-
-    Returns
-    -------
-    combined : (S x T) :obj:`numpy.ndarray`
-        Optimally combined data.
-
-    References
-    ----------
-    .. footbibliography::
-
-    See Also
-    --------
-    :func:`tedana.utils.make_adaptive_mask` : The function used to create the ``adaptive_mask``
-                                              parameter.
-    """
+def make_optcom_sage(data, tes, t2star_map, s0_I_map, t2_map, s0_II_map):
     if data.ndim != 3:
         raise ValueError("Input data must be 3D (S x E x T)")
 
@@ -276,17 +242,8 @@ def make_optcom_sage(data, echo_times, t2star_map=None, s0_I_map=None, t2_map=No
             "{1}".format(len(tes), data.shape[1])
         )
 
-    if t2s.ndim == 1:
-        msg = "Optimally combining data with voxel-wise T2* and T2 estimates"
-    else:
-        msg = "Optimally combining data with voxel- and volume-wise T2* and T2 estimates"
-    # LGR.info(msg)
-
-    combined_t2star = np.zeros((data.shape[0], data.shape[2]))
-    combined_t2 = np.zeros((data.shape[0], data.shape[2]))
-
-    t2star_map_ = t2star_map[..., np.newaxis]  # add singleton
-    t2_map_ = t2_map[..., np.newaxis]  # add singleton
+    t2star_map = t2star_map[..., np.newaxis]  # add singleton
+    t2_map = t2_map[..., np.newaxis]  # add singleton
 
     combined_t2star_I = combine_sage_I(
         tes,
@@ -295,7 +252,7 @@ def make_optcom_sage(data, echo_times, t2star_map=None, s0_I_map=None, t2_map=No
         report=True,
     )
 
-    combined_t2star_II, combined_t2_II = combine_t2_sage(
+    combined_t2star_II, combined_t2_II = combine_sage_II(
         tes,
         t2star_map,
         t2_map,
@@ -303,44 +260,43 @@ def make_optcom_sage(data, echo_times, t2star_map=None, s0_I_map=None, t2_map=No
         report=True,
     )
 
-    return combined_t2star, combined_t2
-
+    return combined_t2star_I, combined_t2star_II, combined_t2_II
 
 
 def combine_sage_I(echo_times, t2star_map, s0_I_map, report=True):
     mid_echo_time = echo_times[-1] / 2
     echo_times_I = echo_times[echo_times > mid_echo_time]
 
-    alpha = s0_I_map[echo_times > mid_echo_time] * (-1 * echo_times_I) * np.exp((-1) * echo_times_I * (1 / t2star_map[echo_times > mid_echo_time]))
+    alpha_I = s0_I_map[echo_times > mid_echo_time] * (-1 * echo_times_I) * np.exp((-1) * echo_times_I * (1 / t2star_map[echo_times > mid_echo_time]))
 
     # If all values across echos are 0, set to 1 to avoid
     # divide-by-zero errors
-    ax0_idx, ax2_idx = np.where(np.all(alpha == 0, axis=1))
-    alpha[ax0_idx, :, ax2_idx] = 1
+    ax0_idx, ax2_idx = np.where(np.all(alpha_I == 0, axis=1))
+    alpha_I[ax0_idx, :, ax2_idx] = 1
 
     # normalize
-    combined_t2star_I = alpha / np.sum(alpha)
+    combined_t2star_I = alpha_I / np.sum(alpha_I)
 
     # derivative with respect to t2 is 0
 
     return combined_t2star_I
 
 
-def combine_sage_II(echo_times, t2_star_map, t2_map, s0_II_map, report=True):
+def combine_sage_II(echo_times, t2star_map, t2_map, s0_II_map, report=True):
     mid_echo_time = echo_times[-1] / 2
     echo_times_II = echo_times[echo_times > mid_echo_time]
     
     alpha_t2star_II = s0_II_map * ((-1 * echo_times[-1]) + echo_times_II) * (np.exp((-1) * echo_times[-1] * ((1 / t2star_map) - (1 / t2_map)) - ((echo_times_II) * (2 * (1 / t2_map) - t2star_map))))
-    alpha_t2_II = s0_II_map * ((echo_times[-1] - (2 * echo_times_II))) * (np.exp((-1 * echo_times[-1]) * ((1 / t2star_map) - (1 / t2_map)) - (echo_times_II * ((2 * (1 / t2_map)) - )1 / t2star_map)))
+    alpha_t2_II = s0_II_map * ((echo_times[-1] - (2 * echo_times_II))) * (np.exp((-1 * echo_times[-1]) * ((1 / t2star_map) - (1 / t2_map)) - (echo_times_II * ((2 * (1 / t2_map)) - 1 / t2star_map))))
 
 
-    ax0_idx, ax2_idx = np.where(np.all(alpha_t2_star == 0, axis=1))
-    alpha_t2_star[ax0_idx, :, ax2_idx] = 1.0
-    ax0_idx, ax2_idx = np.where(np.all(alpha_t2 == 0, axis=1))
-    alpha_t2[ax0_idx, :, ax2_idx] = 1.0
+    ax0_idx, ax2_idx = np.where(np.all(alpha_t2star_II == 0, axis=1))
+    alpha_t2star_II[ax0_idx, :, ax2_idx] = 1
+    ax0_idx, ax2_idx = np.where(np.all(alpha_t2_II == 0, axis=1))
+    alpha_t2_II[ax0_idx, :, ax2_idx] = 1.0
     
     # normalize
-    combined_t2star_II = alpha_t2_star_II / np.sum(alpha_t2_star_II)
+    combined_t2star_II = alpha_t2star_II / np.sum(alpha_t2star_II)
 
     # normalize
     combined_t2_II = alpha_t2_II / np.sum(alpha_t2_II)
