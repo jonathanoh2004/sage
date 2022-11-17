@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 
 import tedana.gscontrol as gsc
-from tedana.io import OutputGenerator
+from tedana.imageio import OutputGenerator
 from tedana.tests.utils import get_test_data_path
 
 data_dir = get_test_data_path()

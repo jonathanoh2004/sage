@@ -5,6 +5,7 @@
 tedana: A Python package for TE-dependent analysis of multi-echo data.
 """
 
+
 import warnings
 
 from ._version import get_versions

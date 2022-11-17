@@ -1,3 +1,5 @@
+.gitignore
+
 .DS_Store
 docs/generated/
 .pytest_cache/
@@ -12,7 +14,6 @@ __pycache__/
 
 # Distribution / packaging
 .Python
-env/
 build/
 develop-eggs/
 dist/
@@ -54,6 +55,9 @@ coverage.xml
 *.mo
 *.pot
 
+# Resources
+resources/gendata/
+
 # Django stuff:
 *.log
 local_settings.py
@@ -90,6 +94,7 @@ celerybeat-schedule
 .venv
 venv/
 ENV/
+env/
 
 # Spyder project settings
 .spyderproject

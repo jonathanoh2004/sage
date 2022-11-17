@@ -1,6 +1,8 @@
 """
 Run the "canonical" TE-Dependent ANAlysis workflow.
 """
+
+
 import argparse
 import datetime
 import json
@@ -16,22 +18,21 @@ import pandas as pd
 from nilearn.masking import compute_epi_mask
 from scipy import stats
 from threadpoolctl import threadpool_limits
-
-import tedana.gscontrol as gsc
 from tedana import (
     __version__,
     combine,
     decay,
     decomposition,
-    io,
+    imageio,
     metrics,
     reporting,
     selection,
     utils,
+    gscontrol as gsc,
 )
-from tedana.bibtex import get_description_references
-from tedana.stats import computefeats2
-from tedana.workflows.parser_utils import check_tedpca_value, is_valid_file
+from ..bibtex import get_description_references
+from ..stats import computefeats2
+from ..workflows.parser_utils import check_tedpca_value, is_valid_file
 
 LGR = logging.getLogger("GENERAL")
 RepLGR = logging.getLogger("REPORT")
@@ -474,8 +475,8 @@ def tedana_workflow(
     tedpca = check_tedpca_value(tedpca, is_parser=False)
 
     LGR.info("Loading input data: {}".format([f for f in data]))
-    catd, ref_img = io.load_data(data, n_echos=n_echos)
-    io_generator = io.OutputGenerator(
+    catd, ref_img = imageio.load_data(data, n_echos=n_echos)
+    io_generator = imageio.OutputGenerator(
         ref_img,
         convention=convention,
         out_dir=out_dir,
@@ -563,7 +564,7 @@ def tedana_workflow(
         mask[t2s_limited == 0] = 0  # reduce mask based on T2* map
     else:
         LGR.info("Computing EPI mask from first echo")
-        first_echo_img = io.new_nii_like(io_generator.reference_img, catd[:, 0, :])
+        first_echo_img = imageio.new_nii_like(io_generator.reference_img, catd[:, 0, :])
         mask = compute_epi_mask(first_echo_img)
         RepLGR.info(
             "An initial mask was generated from the first echo using "
@@ -771,7 +772,7 @@ def tedana_workflow(
         resid = rej_ts - pred_rej_ts
         mmix[:, rej_idx] = resid
         comp_names = [
-            io.add_decomp_prefix(comp, prefix="ica", max_value=comptable.index.max())
+            imageio.add_decomp_prefix(comp, prefix="ica", max_value=comptable.index.max())
             for comp in comptable.index.values
         ]
         mixing_df = pd.DataFrame(data=mmix, columns=comp_names)
@@ -782,7 +783,7 @@ def tedana_workflow(
             "series."
         )
 
-    io.writeresults(
+    imageio.writeresults(
         data_oc,
         mask=mask_denoise,
         comptable=comptable,
@@ -795,7 +796,7 @@ def tedana_workflow(
         gsc.minimum_image_regression(data_oc, mmix, mask_denoise, comptable, io_generator)
 
     if verbose:
-        io.writeresults_echoes(catd, mmix, mask_denoise, comptable, io_generator)
+        imageio.writeresults_echoes(catd, mmix, mask_denoise, comptable, io_generator)
 
     # Write out BIDS-compatible description file
     derivative_metadata = {
@@ -846,7 +847,7 @@ def tedana_workflow(
     if not no_reports:
         LGR.info("Making figures folder with static component maps and timecourse plots.")
 
-        dn_ts, hikts, lowkts = io.denoise_ts(data_oc, mmix, mask_denoise, comptable)
+        dn_ts, hikts, lowkts = imageio.denoise_ts(data_oc, mmix, mask_denoise, comptable)
 
         reporting.static_figures.carpet_plot(
             optcom_ts=data_oc,

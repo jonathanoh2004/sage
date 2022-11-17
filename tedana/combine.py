@@ -235,17 +235,18 @@ def make_optcom_sage(data, tes, t2star_map, s0_I_map, t2_map, s0_II_map):
     if data.ndim != 3:
         raise ValueError("Input data must be 3D (S x E x T)")
 
-    if len(tes) != data.shape[1]:
+    if tes.shape[0] != data.shape[1]:
         raise ValueError(
             "Number of echos provided does not match second "
             "dimension of input data: {0} != "
             "{1}".format(len(tes), data.shape[1])
         )
 
-    t2star_map = t2star_map[..., np.newaxis]  # add singleton
-    t2_map = t2_map[..., np.newaxis]  # add singleton
+    # t2star_map = t2star_map[..., np.newaxis]  # add singleton
+    # t2_map = t2_map[..., np.newaxis]  # add singleton
 
     combined_t2star_I = combine_sage_I(
+        data,
         tes,
         t2star_map,
         s0_I_map,
@@ -253,6 +254,7 @@ def make_optcom_sage(data, tes, t2star_map, s0_I_map, t2_map, s0_II_map):
     )
 
     combined_t2star_II, combined_t2_II = combine_sage_II(
+        data,
         tes,
         t2star_map,
         t2_map,
@@ -263,42 +265,72 @@ def make_optcom_sage(data, tes, t2star_map, s0_I_map, t2_map, s0_II_map):
     return combined_t2star_I, combined_t2star_II, combined_t2_II
 
 
-def combine_sage_I(echo_times, t2star_map, s0_I_map, report=True):
-    mid_echo_time = echo_times[-1] / 2
-    echo_times_I = echo_times[echo_times > mid_echo_time]
+def combine_sage_I(data, echo_times, t2star_map, s0_I_map, report=True):
+    echo_times = np.expand_dims(echo_times, axis=0)
+    idx_I = echo_times < echo_times[0, -1]
+    s0_I_map = np.expand_dims(s0_I_map, axis=1)
+    t2star_map = np.expand_dims(t2star_map, axis=1)
 
-    alpha_I = s0_I_map[echo_times > mid_echo_time] * (-1 * echo_times_I) * np.exp((-1) * echo_times_I * (1 / t2star_map[echo_times > mid_echo_time]))
+    alpha_I = (s0_I_map * (-1 * echo_times[idx_I])) * np.exp(
+        (-1) * echo_times[idx_I] * (1 / t2star_map)
+    )
 
     # If all values across echos are 0, set to 1 to avoid
     # divide-by-zero errors
-    ax0_idx, ax2_idx = np.where(np.all(alpha_I == 0, axis=1))
-    alpha_I[ax0_idx, :, ax2_idx] = 1
+    ax0_idx = np.where(np.all(alpha_I == 0, axis=1))
+    alpha_I[ax0_idx, :] = 1
 
     # normalize
-    combined_t2star_I = alpha_I / np.sum(alpha_I)
+    alpha_I = alpha_I / np.nansum(alpha_I)
 
-    # derivative with respect to t2 is 0
+    combined_t2star_I = np.zeros((data.shape[0], data.shape[2]))
+
+    for samp_idx in range(data.shape[0]):
+        combined_t2star_I[samp_idx, :] = np.average(
+            data[samp_idx, idx_I[0, :], :], axis=0, weights=alpha_I[samp_idx, :]
+        )
+
+    # derivative with respect to t2 is 0, so corresponding weight is always all zeros
 
     return combined_t2star_I
 
 
-def combine_sage_II(echo_times, t2star_map, t2_map, s0_II_map, report=True):
+def combine_sage_II(data, echo_times, t2star_map, t2_map, s0_II_map, report=True):
     mid_echo_time = echo_times[-1] / 2
-    echo_times_II = echo_times[echo_times > mid_echo_time]
-    
-    alpha_t2star_II = s0_II_map * ((-1 * echo_times[-1]) + echo_times_II) * (np.exp((-1) * echo_times[-1] * ((1 / t2star_map) - (1 / t2_map)) - ((echo_times_II) * (2 * (1 / t2_map) - t2star_map))))
-    alpha_t2_II = s0_II_map * ((echo_times[-1] - (2 * echo_times_II))) * (np.exp((-1 * echo_times[-1]) * ((1 / t2star_map) - (1 / t2_map)) - (echo_times_II * ((2 * (1 / t2_map)) - 1 / t2star_map))))
+    echo_times = np.expand_dims(echo_times, axis=0)
 
+    idx_II = echo_times > mid_echo_time
+    s0_II_map = np.expand_dims(s0_II_map, axis=1)
+    t2_map = np.expand_dims(t2_map, axis=1)
+    t2star_map = np.expand_dims(t2star_map, axis=1)
 
-    ax0_idx, ax2_idx = np.where(np.all(alpha_t2star_II == 0, axis=1))
-    alpha_t2star_II[ax0_idx, :, ax2_idx] = 1
-    ax0_idx, ax2_idx = np.where(np.all(alpha_t2_II == 0, axis=1))
-    alpha_t2_II[ax0_idx, :, ax2_idx] = 1.0
-    
+    alpha_t2star_II = (s0_II_map * ((-1 * echo_times[0, -1]) + echo_times[idx_II])) * np.exp(
+        ((-1) * echo_times[0, -1] * ((1 / t2star_map) - (1 / t2_map)))
+        - ((echo_times[idx_II]) * ((2 * (1 / t2_map)) - (1 / t2star_map)))
+    )
+    alpha_t2_II = (s0_II_map * ((echo_times[0, -1] - (2 * echo_times[idx_II])))) * np.exp(
+        ((-1 * echo_times[0, -1]) * ((1 / t2star_map) - (1 / t2_map)))
+        - (echo_times[idx_II] * ((2 * (1 / t2_map)) - (1 / t2star_map)))
+    )
+
+    ax0_idx = np.where(np.all(alpha_t2star_II == 0, axis=1))
+    alpha_t2star_II[ax0_idx, :] = 1
+    ax0_idx = np.where(np.all(alpha_t2_II == 0, axis=1))
+    alpha_t2_II[ax0_idx, :] = 1
+
     # normalize
-    combined_t2star_II = alpha_t2star_II / np.sum(alpha_t2star_II)
+    alpha_t2star_II = alpha_t2star_II / np.sum(alpha_t2star_II)
+    alpha_t2_II = alpha_t2_II / np.sum(alpha_t2_II)
 
-    # normalize
-    combined_t2_II = alpha_t2_II / np.sum(alpha_t2_II)
+    combined_t2star_II = np.zeros((data.shape[0], data.shape[2]))
+    combined_t2_II = np.zeros((data.shape[0], data.shape[2]))
+
+    for samp_idx in range(data.shape[0]):
+        combined_t2star_II[samp_idx, :] = np.average(
+            data[samp_idx, idx_II[0, :], :], axis=0, weights=alpha_t2star_II[samp_idx, :]
+        )
+        combined_t2_II[samp_idx, :] = np.average(
+            data[samp_idx, idx_II[0, :], :], axis=0, weights=alpha_t2_II[samp_idx, :]
+        )
 
     return combined_t2star_II, combined_t2_II

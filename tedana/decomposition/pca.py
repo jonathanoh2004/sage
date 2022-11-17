@@ -10,7 +10,7 @@ from mapca import MovingAveragePCA
 from scipy import stats
 from sklearn.decomposition import PCA
 
-from tedana import io, metrics, utils
+from tedana import imageio, metrics, utils
 from tedana.reporting import pca_results as plot_pca_results
 from tedana.selection import kundu_tedpca
 from tedana.stats import computefeats2
@@ -226,8 +226,8 @@ def tedpca(
     data_z = (data_z - data_z.mean()) / data_z.std()  # var normalize everything
 
     if algorithm in ["mdl", "aic", "kic"]:
-        data_img = io.new_nii_like(io_generator.reference_img, utils.unmask(data, mask))
-        mask_img = io.new_nii_like(io_generator.reference_img, mask.astype(int))
+        data_img = imageio.new_nii_like(io_generator.reference_img, utils.unmask(data, mask))
+        mask_img = imageio.new_nii_like(io_generator.reference_img, mask.astype(int))
         ma_pca = MovingAveragePCA(criterion=algorithm, normalize=True)
         _ = ma_pca.fit_transform(data_img, mask_img)
 
@@ -400,7 +400,7 @@ def tedpca(
 
     # Save decomposition files
     comp_names = [
-        io.add_decomp_prefix(comp, prefix="pca", max_value=comptable.index.max())
+        imageio.add_decomp_prefix(comp, prefix="pca", max_value=comptable.index.max())
         for comp in comptable.index.values
     ]
 

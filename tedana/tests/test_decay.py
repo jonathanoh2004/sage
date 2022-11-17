@@ -7,9 +7,9 @@ import os.path as op
 import numpy as np
 import pytest
 
-from tedana import combine
+from tedana import combine, imageio
 from tedana import decay as me
-from tedana import io, utils
+from tedana import utils
 from tedana.tests.utils import get_test_data_path
 
 
@@ -17,7 +17,7 @@ from tedana.tests.utils import get_test_data_path
 def testdata1():
     tes = np.array([14.5, 38.5, 62.5])
     in_files = [op.join(get_test_data_path(), "echo{0}.nii.gz".format(i + 1)) for i in range(3)]
-    data, _ = io.load_data(in_files, n_echos=len(tes))
+    data, _ = imageio.load_data(in_files, n_echos=len(tes))
     mask, adaptive_mask = utils.make_adaptive_mask(data, getsum=True)
     fittype = "loglin"
     data_dict = {

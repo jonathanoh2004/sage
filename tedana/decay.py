@@ -243,7 +243,7 @@ def fit_loglinear(data_cat, echo_times, adaptive_mask, report=True):
             "used to determine which echoes would be used to estimate T2* "
             "and S0."
         )
-    n_samp, _, n_vols = data_cat.shape # MAKE _ FOR CLARITY
+    n_samp, _, n_vols = data_cat.shape  # MAKE _ FOR CLARITY
 
     echos_to_run = np.unique(adaptive_mask)
     # When there is one good echo, use two
@@ -266,7 +266,7 @@ def fit_loglinear(data_cat, echo_times, adaptive_mask, report=True):
         # Create echo masks to assign values to limited vs full maps later
         echo_mask = np.squeeze(echo_masks[..., i_echo])
         echo_mask[adaptive_mask == echo_num] = True
-        #echo_masks[..., i_echo] = echo_mask # THIS LINE SHOULD BE REDUNDANT
+        # echo_masks[..., i_echo] = echo_mask # THIS LINE SHOULD BE REDUNDANT
 
         # perform log linear fit of echo times against MR signal
         # make DV matrix: samples x (time series * echos)
@@ -490,9 +490,7 @@ def fit_decay_sage(data, tes, fittype, report=True):
         data = data[:, :, None]
 
     if fittype == "loglin":
-        t2star_map, s0_I_map, t2_map, s0_II_map = fit_loglinear_sage(
-            data, tes, report=report
-        )
+        t2star_map, s0_I_map, t2_map, s0_II_map = fit_loglinear_sage(data, tes, report=report)
     elif fittype == "curvefit":
         t2star_map, s0_I_map, t2_map, s0_II_map = fit_monoexponential_sage(
             data, tes, report=report
@@ -539,13 +537,29 @@ def fit_monoexponential_sage(data_cat, echo_times, report=True):
     data_2d_t2 = data_cat[:, echo_times_idx_t2, :].reshape(n_samp, -1).T
     echo_times_1d = np.repeat(echo_times, n_vols)
 
-    iterable = [(data_2d_t2star, echo_times_idx_t2star, t2star_map, s0_I_map,
-                    lambda tes, s0_I, t2star: s0_I * np.exp(-tes / t2star), t2star_map, s0_I_map),
-                (data_2d_t2, echo_times_idx_t2, t2_map, s0_II_map,
-                    lambda tes, s0_II, t2: s0_II * np.exp(-tes / t2), t2_map, s0_II_map)]
+    iterable = [
+        (
+            data_2d_t2star,
+            echo_times_idx_t2star,
+            t2star_map,
+            s0_I_map,
+            lambda tes, s0_I, t2star: s0_I * np.exp(-tes / t2star),
+            t2star_map,
+            s0_I_map,
+        ),
+        (
+            data_2d_t2,
+            echo_times_idx_t2,
+            t2_map,
+            s0_II_map,
+            lambda tes, s0_II, t2: s0_II * np.exp(-tes / t2),
+            t2_map,
+            s0_II_map,
+        ),
+    ]
 
     # perform a monoexponential fit of echo times against MR signal
-    # using loglin estimates as initial starting points for fit    
+    # using loglin estimates as initial starting points for fit
     for data_2d, voxel_idx, t_map, s_map, monoexp_func, t_map_result, s_map_result in iterable:
         fail_count = 0
         for voxel in voxel_idx:
@@ -574,14 +588,15 @@ def fit_loglinear_sage(data_cat, echo_times, report=True):
     n_samp, _, n_vols = data_cat.shape
 
     mid_echo_time = echo_times[-1] / 2
-    echo_times_idx_t2 = echo_times[echo_times > mid_echo_time]
-    echo_times_idx_t2star = echo_times[echo_times < echo_times[-1]]
+    te_idx_t2star = echo_times < echo_times[-1]
+    te_idx_t2 = echo_times > mid_echo_time
 
     # 1) Find T2* and S0_I values for all voxels
-    data_2d = data_cat[:, echo_times_idx_t2star, :].reshape(n_samp, -1).T
+    # data_2d: ((E x T) x S)
+    data_2d = data_cat[:, te_idx_t2star, :].reshape(n_samp, -1).T
     log_data = np.log(np.abs(data_2d) + 1)
 
-    x = np.column_stack([np.ones(echo_times_idx_t2star.shape[0]), -1 * echo_times_idx_t2star])
+    x = np.column_stack([np.ones(np.sum(te_idx_t2star)), -1 * echo_times[te_idx_t2star]])
     X = np.repeat(x, n_vols, axis=0)
 
     # Log-linear fit
@@ -590,10 +605,17 @@ def fit_loglinear_sage(data_cat, echo_times, report=True):
     s0_I_map = np.exp(betas[0, :]).T
 
     # 2) Find T2 values and S0_II values for all voxels using T2* values
-    data_2d_t2 = data_cat[:, echo_times_idx_t2, :].reshape(n_samp, -1).T
-    log_data = np.log(np.abs(data_2d_t2) + 1) - (t2star_map * ((2 * echo_times[echo_times_idx_t2]) - echo_times[-1]))
+    data_2d = data_cat[:, te_idx_t2, :].reshape(n_samp, -1).T
+    constant = np.repeat(
+        (np.expand_dims(t2star_map, axis=1) * ((2 * echo_times[te_idx_t2]) - echo_times[-1])).T,
+        n_vols,
+        axis=0,
+    )
+    log_data = np.log(np.abs(data_2d) + 1) - constant
 
-    x = np.column_stack([np.ones(echo_times_idx_t2.shape[0]), -2 * echo_times[echo_times_idx_t2] + echo_times[-1]])
+    x = np.column_stack(
+        [np.ones(np.sum(te_idx_t2)), (-2 * echo_times[te_idx_t2]) + echo_times[-1]]
+    )
     X = np.repeat(x, n_vols, axis=0)
 
     betas = np.linalg.lstsq(X, log_data, rcond=None)[0]

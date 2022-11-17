@@ -4,29 +4,25 @@ and combine data across TEs according to (cite paper)
 """
 
 
-import argparse
-import logging
 import os
-import os.path as op
-
+from threadpoolctl import threadpool_limits
+import argparse
 import numpy as np
 from scipy import stats
-from threadpoolctl import threadpool_limits
-
-from tedana import __version__, combine, decay, io, utils
+from tedana import __version__, combine, decay, imageio, utils
 from tedana.workflows.parser_utils import is_valid_file
 
 
 def _get_parser():
     """
-    Parses command line inputs for tedana
+    Parses command line inputs for sage tedana
 
     Returns
     -------
     parser.parse_args() : argparse dict
     """
     parser = argparse.ArgumentParser()
-    # Argument parser follow templtate provided by RalphyZ
+    # Argument parser follow template provided by RalphyZ
     # https://stackoverflow.com/a/43456577
     optional = parser._action_groups.pop()
     required = parser.add_argument_group("Required Arguments")
@@ -158,21 +154,20 @@ def sage_workflow(
     quiet=False,
 ):
 
-    out_dir = op.abspath(out_dir)
-    if not op.isdir(out_dir):
+    out_dir = os.path.abspath(out_dir)
+    if not os.path.isdir(out_dir):
         os.mkdir(out_dir)
 
-
     # ensure tes are in appropriate format
-    tes = [float(te) for te in tes]
+    tes = np.array([float(te) for te in tes])
     n_echos = len(tes)
 
     # coerce data to samples x echos x time array
     if isinstance(data, str):
         data = [data]
 
-    catd, ref_img = io.load_data(data, n_echos=n_echos)
-    io_generator = io.OutputGenerator(
+    catd, ref_img = imageio.load_data(data, n_echos=n_echos)
+    io_generator = imageio.OutputGenerator(
         ref_img,
         convention=convention,
         out_dir=out_dir,
@@ -189,16 +184,18 @@ def sage_workflow(
 
     # set a hard cap for the T2* map/timeseries
     # anything that is 10x higher than the 99.5 %ile will be reset to 99.5 %ile
-    cap_t2s = stats.scoreatpercentile(t2star_map.flatten(), 99.5, interpolation_method="lower")
-    # cap_t2s_sec = utils.millisec2sec(cap_t2s * 10.0)
-    # LGR.debug("Setting cap on T2* map at {:.5f}s".format(cap_t2s_sec))
-    t2star_map[t2star_map > cap_t2s * 10] = cap_t2s
+    # cap_t2star = stats.scoreatpercentile(t2star_map.flatten(), 99.5, interpolation_method="lower")
+    # cap_t2 = stats.scoreatpercentile(t2_map.flatten(), 99.5, interpolation_method="lower")
+    # cap_t2star_sec = utils.millisec2sec(cap_t2star * 10.0)
+    # # LGR.debug("Setting cap on T2* map at {:.5f}s".format(cap_t2star_sec))
+    # cap_t2_sec = utils.millisec2sec(cap_t2 * 10.0)
+    # # LGR.debug("Setting cap on T2 map at {:.5f}s".format(cap_t2_sec))
+    # t2star_map[t2star_map > 100] = 50
+    # t2star_map[t2_map > 100] = 50
 
     # LGR.info("Computing optimal combination")
     # optimally combine data
-    OCcatd = combine.make_optcom_sage(
-        catd, tes, t2star_map, s0_I_map, t2_map, s0_II_map
-    )  # REMOVED MASKSUM PARAMETER
+    OCcatd = combine.make_optcom_sage(catd, tes, t2star_map, s0_I_map, t2_map, s0_II_map)
 
     # clean up numerical errors
     for arr in (OCcatd, s0_I_map, t2star_map):

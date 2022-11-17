@@ -10,7 +10,7 @@ import numpy as np
 from scipy import stats
 from threadpoolctl import threadpool_limits
 
-from tedana import __version__, combine, decay, io, utils
+from tedana import __version__, combine, decay, imageio, utils
 from tedana.workflows.parser_utils import is_valid_file
 
 LGR = logging.getLogger("GENERAL")
@@ -242,8 +242,8 @@ def t2smap_workflow(
         data = [data]
 
     LGR.info("Loading input data: {}".format([f for f in data]))
-    catd, ref_img = io.load_data(data, n_echos=n_echos)
-    io_generator = io.OutputGenerator(
+    catd, ref_img = imageio.load_data(data, n_echos=n_echos)
+    io_generator = imageio.OutputGenerator(
         ref_img,
         convention=convention,
         out_dir=out_dir,

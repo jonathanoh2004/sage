@@ -10,7 +10,7 @@ import nibabel as nib
 import numpy as np
 import pytest
 
-from tedana import io, utils
+from tedana import imageio, utils
 
 rs = np.random.RandomState(1234)
 datadir = pjoin(dirname(__file__), "data")
@@ -78,7 +78,7 @@ def test_reshape_niimg():
 
 def test_make_adaptive_mask():
     # load data make masks
-    data = io.load_data(fnames, n_echos=len(tes))[0]
+    data = imageio.load_data(fnames, n_echos=len(tes))[0]
     mask, masksum = utils.make_adaptive_mask(data, getsum=True, threshold=1)
 
     # getsum doesn't change mask values

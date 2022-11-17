@@ -15,8 +15,8 @@ import pytest
 import requests
 from pkg_resources import resource_filename
 
-from tedana.workflows import t2smap as t2smap_cli
-from tedana.workflows import tedana as tedana_cli
+from tedana.workflows import t2star as t2smap_cli
+from tedana.workflows import full as tedana_cli
 
 
 def check_integration_outputs(fname, outpath):
