@@ -221,6 +221,8 @@ def sage_workflow(
     )
     io_generator.save_file(OCcatd, "combined img")
 
+    
+
     # Write out BIDS-compatible description file
     derivative_metadata = {
         "Name": "t2smap Outputs",
@@ -239,6 +241,238 @@ def sage_workflow(
         ],
     }
     io_generator.save_file(derivative_metadata, "data description json")
+
+
+    ########################################################################################
+    ####################### DENOISING ######################################################
+    ########################################################################################
+    
+    # regress out global signal unless explicitly not desired
+    if "gsr" in gscontrol:
+        catd, data_oc = gsc.gscontrol_raw(catd, data_oc, n_echos, io_generator)
+
+    fout = io_generator.save_file(data_oc, "combined img")
+    LGR.info("Writing optimally combined data set: {}".format(fout))
+
+    if mixm is None:
+        # Identify and remove thermal noise from data
+        dd, n_components = decomposition.tedpca(
+            catd,
+            data_oc,
+            combmode,
+            mask_clf,
+            masksum_clf,
+            t2s_full,
+            io_generator,
+            tes=tes,
+            algorithm=tedpca,
+            kdaw=10.0,
+            rdaw=1.0,
+            verbose=verbose,
+            low_mem=low_mem,
+        )
+        if verbose:
+            io_generator.save_file(utils.unmask(dd, mask_clf), "whitened img")
+
+        # Perform ICA, calculate metrics, and apply decision tree
+        # Restart when ICA fails to converge or too few BOLD components found
+        keep_restarting = True
+        n_restarts = 0
+        seed = fixed_seed
+        while keep_restarting:
+            mmix, seed = decomposition.tedica(
+                dd, n_components, seed, maxit, maxrestart=(maxrestart - n_restarts)
+            )
+            seed += 1
+            n_restarts = seed - fixed_seed
+
+            # Estimate betas and compute selection metrics for mixing matrix
+            # generated from dimensionally reduced data using full data (i.e., data
+            # with thermal noise)
+            LGR.info("Making second component selection guess from ICA results")
+            required_metrics = [
+                "kappa",
+                "rho",
+                "countnoise",
+                "countsigFT2",
+                "countsigFS0",
+                "dice_FT2",
+                "dice_FS0",
+                "signal-noise_t",
+                "variance explained",
+                "normalized variance explained",
+                "d_table_score",
+            ]
+            comptable = metrics.collect.generate_metrics(
+                catd,
+                data_oc,
+                mmix,
+                masksum_clf,
+                tes,
+                io_generator,
+                "ICA",
+                metrics=required_metrics,
+            )
+            comptable, metric_metadata = selection.kundu_selection_v2(comptable, n_echos, n_vols)
+
+            n_bold_comps = comptable[comptable.classification == "accepted"].shape[0]
+            if (n_restarts < maxrestart) and (n_bold_comps == 0):
+                LGR.warning("No BOLD components found. Re-attempting ICA.")
+            elif n_bold_comps == 0:
+                LGR.warning("No BOLD components found, but maximum number of restarts reached.")
+                keep_restarting = False
+            else:
+                keep_restarting = False
+
+            RepLGR.disabled = True  # Disable the report to avoid duplicate text
+        RepLGR.disabled = False  # Re-enable the report after the while loop is escaped
+    
+    # Write out ICA files.
+    comp_names = comptable["Component"].values
+    mixing_df = pd.DataFrame(data=mmix, columns=comp_names)
+    io_generator.save_file(mixing_df, "ICA mixing tsv")
+    betas_oc = utils.unmask(computefeats2(data_oc, mmix, mask_denoise), mask_denoise)
+    io_generator.save_file(betas_oc, "z-scored ICA components img")
+
+    # Save component table and associated json
+    io_generator.save_file(comptable, "ICA metrics tsv")
+    metric_metadata = metrics.collect.get_metadata(comptable)
+    io_generator.save_file(metric_metadata, "ICA metrics json")
+
+    decomp_metadata = {
+        "Method": (
+            "Independent components analysis with FastICA algorithm implemented by sklearn. "
+        ),
+    }
+    for comp_name in comp_names:
+        decomp_metadata[comp_name] = {
+            "Description": "ICA fit to dimensionally-reduced optimally combined data.",
+            "Method": "tedana",
+        }
+    with open(io_generator.get_name("ICA decomposition json"), "w") as fo:
+        json.dump(decomp_metadata, fo, sort_keys=True, indent=4)
+
+    if comptable[comptable.classification == "accepted"].shape[0] == 0:
+        LGR.warning("No BOLD components detected! Please check data and results!")
+
+    mmix_orig = mmix.copy()
+    if tedort:
+        acc_idx = comptable.loc[~comptable.classification.str.contains("rejected")].index.values
+        rej_idx = comptable.loc[comptable.classification.str.contains("rejected")].index.values
+        acc_ts = mmix[:, acc_idx]
+        rej_ts = mmix[:, rej_idx]
+        betas = np.linalg.lstsq(acc_ts, rej_ts, rcond=None)[0]
+        pred_rej_ts = np.dot(acc_ts, betas)
+        resid = rej_ts - pred_rej_ts
+        mmix[:, rej_idx] = resid
+        comp_names = [
+            imageio.add_decomp_prefix(comp, prefix="ica", max_value=comptable.index.max())
+            for comp in comptable.index.values
+        ]
+        mixing_df = pd.DataFrame(data=mmix, columns=comp_names)
+        io_generator.save_file(mixing_df, "ICA orthogonalized mixing tsv")
+        RepLGR.info(
+            "Rejected components' time series were then "
+            "orthogonalized with respect to accepted components' time "
+            "series."
+        )
+
+    imageio.writeresults(
+        data_oc,
+        mask=mask_denoise,
+        comptable=comptable,
+        mmix=mmix,
+        n_vols=n_vols,
+        io_generator=io_generator,
+    )
+
+    if "mir" in gscontrol:
+        gsc.minimum_image_regression(data_oc, mmix, mask_denoise, comptable, io_generator)
+
+    if verbose:
+        imageio.writeresults_echoes(catd, mmix, mask_denoise, comptable, io_generator)
+
+    # Write out BIDS-compatible description file
+    derivative_metadata = {
+        "Name": "tedana Outputs",
+        "BIDSVersion": "1.5.0",
+        "DatasetType": "derivative",
+        "GeneratedBy": [
+            {
+                "Name": "tedana",
+                "Version": __version__,
+                "Description": (
+                    "A denoising pipeline for the identification and removal "
+                    "of non-BOLD noise from multi-echo fMRI data."
+                ),
+                "CodeURL": "https://github.com/ME-ICA/tedana",
+            }
+        ],
+    }
+    with open(io_generator.get_name("data description json"), "w") as fo:
+        json.dump(derivative_metadata, fo, sort_keys=True, indent=4)
+
+    RepLGR.info(
+        "This workflow used numpy \\citep{van2011numpy}, scipy \\citep{virtanen2020scipy}, "
+        "pandas \\citep{mckinney2010data,reback2020pandas}, "
+        "scikit-learn \\citep{pedregosa2011scikit}, "
+        "nilearn, bokeh \\citep{bokehmanual}, matplotlib \\citep{Hunter:2007}, "
+        "and nibabel \\citep{brett_matthew_2019_3233118}."
+    )
+
+    RepLGR.info(
+        "This workflow also used the Dice similarity index "
+        "\\citep{dice1945measures,sorensen1948method}."
+    )
+
+    with open(repname, "r") as fo:
+        report = [line.rstrip() for line in fo.readlines()]
+        report = " ".join(report)
+
+    with open(repname, "w") as fo:
+        fo.write(report)
+
+    # Collect BibTeX entries for cited papers
+    references = get_description_references(report)
+
+    with open(bibtex_file, "w") as fo:
+        fo.write(references)
+
+    if not no_reports:
+        LGR.info("Making figures folder with static component maps and timecourse plots.")
+
+        dn_ts, hikts, lowkts = imageio.denoise_ts(data_oc, mmix, mask_denoise, comptable)
+
+        reporting.static_figures.carpet_plot(
+            optcom_ts=data_oc,
+            denoised_ts=dn_ts,
+            hikts=hikts,
+            lowkts=lowkts,
+            mask=mask_denoise,
+            io_generator=io_generator,
+            gscontrol=gscontrol,
+        )
+        reporting.static_figures.comp_figures(
+            data_oc,
+            mask=mask_denoise,
+            comptable=comptable,
+            mmix=mmix_orig,
+            io_generator=io_generator,
+            png_cmap=png_cmap,
+        )
+
+        if sys.version_info.major == 3 and sys.version_info.minor < 6:
+            warn_msg = (
+                "Reports requested but Python version is less than "
+                "3.6.0. Dynamic reports will not be generated."
+            )
+            LGR.warn(warn_msg)
+        else:
+            LGR.info("Generating dynamic report")
+            reporting.generate_report(io_generator, tr=img_t_r)
+
+    LGR.info("Workflow completed")
+    utils.teardown_loggers()
 
 
 if __name__ == "__main__":
