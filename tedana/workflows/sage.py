@@ -5,12 +5,27 @@ and combine data across TEs according to (cite paper)
 
 
 import os
+import sys
 from threadpoolctl import threadpool_limits
 import argparse
+import json
 import numpy as np
+import pandas as pd
 from scipy import stats
-from tedana import __version__, combine, decay, imageio, utils
+from tedana import (
+    __version__,
+    combine,
+    decay,
+    imageio,
+    utils,
+    gscontrol as gsc,
+    decomposition,
+    metrics,
+    selection,
+    reporting,
+)
 from tedana.workflows.parser_utils import is_valid_file
+from ..stats import computefeats2
 
 
 def _get_parser():
@@ -148,6 +163,15 @@ def sage_workflow(
     prefix="",
     convention="bids",
     fittype="loglin",
+    tedpca="aic",
+    fixed_seed=42,
+    maxit=500,
+    maxrestart=10,
+    tedort=False,
+    gscontrol=None,
+    no_reports=False,
+    png_cmap="coolwarm",
+    verbose=False,
     fitmode="all",
     combmode="t2s",
     debug=False,
@@ -161,6 +185,10 @@ def sage_workflow(
     # ensure tes are in appropriate format
     tes = np.array([float(te) for te in tes])
     n_echos = len(tes)
+
+    # Coerce gscontrol to list
+    if not isinstance(gscontrol, list):
+        gscontrol = [gscontrol]
 
     # coerce data to samples x echos x time array
     if isinstance(data, str):
@@ -195,10 +223,10 @@ def sage_workflow(
 
     # LGR.info("Computing optimal combination")
     # optimally combine data
-    OCcatd = combine.make_optcom_sage(catd, tes, t2star_map, s0_I_map, t2_map, s0_II_map)
+    data_oc = combine.make_optcom_sage(catd, tes, t2star_map, s0_I_map, t2_map, s0_II_map)
 
     # clean up numerical errors
-    for arr in (OCcatd, s0_I_map, t2star_map):
+    for arr in (data_oc, s0_I_map, t2star_map):
         np.nan_to_num(arr, copy=False)
 
     s0_I_map[s0_I_map < 0] = 0
@@ -219,9 +247,7 @@ def sage_workflow(
         utils.millisec2sec(t2_map),
         "t2 img",
     )
-    io_generator.save_file(OCcatd, "combined img")
-
-    
+    io_generator.save_file(data_oc, "combined img")
 
     # Write out BIDS-compatible description file
     derivative_metadata = {
@@ -242,91 +268,88 @@ def sage_workflow(
     }
     io_generator.save_file(derivative_metadata, "data description json")
 
-
     ########################################################################################
     ####################### DENOISING ######################################################
     ########################################################################################
-    
+
     # regress out global signal unless explicitly not desired
     if "gsr" in gscontrol:
         catd, data_oc = gsc.gscontrol_raw(catd, data_oc, n_echos, io_generator)
 
     fout = io_generator.save_file(data_oc, "combined img")
-    LGR.info("Writing optimally combined data set: {}".format(fout))
 
-    if mixm is None:
-        # Identify and remove thermal noise from data
-        dd, n_components = decomposition.tedpca(
+    # Identify and remove thermal noise from data
+    dd, n_components = decomposition.tedpca(
+        catd,
+        data_oc,
+        combmode,
+        mask_clf,
+        masksum_clf,
+        t2s_full,
+        io_generator,
+        tes=tes,
+        algorithm=tedpca,
+        kdaw=10.0,
+        rdaw=1.0,
+        verbose=verbose,
+        low_mem=low_mem,
+    )
+    if verbose:
+        io_generator.save_file(utils.unmask(dd, mask_clf), "whitened img")
+
+    # mask_denoise, low_mem, mask_clf, masksum_clf
+
+    mmix = None  # ADDED
+    comptable = None  # ADDED
+
+    # Perform ICA, calculate metrics, and apply decision tree
+    # Restart when ICA fails to converge or too few BOLD components found
+    keep_restarting = True
+    n_restarts = 0
+    seed = fixed_seed
+    while keep_restarting:
+        mmix, seed = decomposition.tedica(
+            dd, n_components, seed, maxit, maxrestart=(maxrestart - n_restarts)
+        )
+        seed += 1
+        n_restarts = seed - fixed_seed
+
+        # Estimate betas and compute selection metrics for mixing matrix
+        # generated from dimensionally reduced data using full data (i.e., data
+        # with thermal noise)
+        required_metrics = [
+            "kappa",
+            "rho",
+            "countnoise",
+            "countsigFT2",
+            "countsigFS0",
+            "dice_FT2",
+            "dice_FS0",
+            "signal-noise_t",
+            "variance explained",
+            "normalized variance explained",
+            "d_table_score",
+        ]
+        comptable = metrics.collect.generate_metrics(
             catd,
             data_oc,
-            combmode,
-            mask_clf,
+            mmix,
             masksum_clf,
-            t2s_full,
+            tes,
             io_generator,
-            tes=tes,
-            algorithm=tedpca,
-            kdaw=10.0,
-            rdaw=1.0,
-            verbose=verbose,
-            low_mem=low_mem,
+            "ICA",
+            metrics=required_metrics,
         )
-        if verbose:
-            io_generator.save_file(utils.unmask(dd, mask_clf), "whitened img")
+        comptable, metric_metadata = selection.kundu_selection_v2(comptable, n_echos, n_vols)
 
-        # Perform ICA, calculate metrics, and apply decision tree
-        # Restart when ICA fails to converge or too few BOLD components found
-        keep_restarting = True
-        n_restarts = 0
-        seed = fixed_seed
-        while keep_restarting:
-            mmix, seed = decomposition.tedica(
-                dd, n_components, seed, maxit, maxrestart=(maxrestart - n_restarts)
-            )
-            seed += 1
-            n_restarts = seed - fixed_seed
+        n_bold_comps = comptable[comptable.classification == "accepted"].shape[0]
+        if (n_restarts < maxrestart) and (n_bold_comps == 0):
+            pass
+        elif n_bold_comps == 0:
+            keep_restarting = False
+        else:
+            keep_restarting = False
 
-            # Estimate betas and compute selection metrics for mixing matrix
-            # generated from dimensionally reduced data using full data (i.e., data
-            # with thermal noise)
-            LGR.info("Making second component selection guess from ICA results")
-            required_metrics = [
-                "kappa",
-                "rho",
-                "countnoise",
-                "countsigFT2",
-                "countsigFS0",
-                "dice_FT2",
-                "dice_FS0",
-                "signal-noise_t",
-                "variance explained",
-                "normalized variance explained",
-                "d_table_score",
-            ]
-            comptable = metrics.collect.generate_metrics(
-                catd,
-                data_oc,
-                mmix,
-                masksum_clf,
-                tes,
-                io_generator,
-                "ICA",
-                metrics=required_metrics,
-            )
-            comptable, metric_metadata = selection.kundu_selection_v2(comptable, n_echos, n_vols)
-
-            n_bold_comps = comptable[comptable.classification == "accepted"].shape[0]
-            if (n_restarts < maxrestart) and (n_bold_comps == 0):
-                LGR.warning("No BOLD components found. Re-attempting ICA.")
-            elif n_bold_comps == 0:
-                LGR.warning("No BOLD components found, but maximum number of restarts reached.")
-                keep_restarting = False
-            else:
-                keep_restarting = False
-
-            RepLGR.disabled = True  # Disable the report to avoid duplicate text
-        RepLGR.disabled = False  # Re-enable the report after the while loop is escaped
-    
     # Write out ICA files.
     comp_names = comptable["Component"].values
     mixing_df = pd.DataFrame(data=mmix, columns=comp_names)
@@ -353,8 +376,7 @@ def sage_workflow(
         json.dump(decomp_metadata, fo, sort_keys=True, indent=4)
 
     if comptable[comptable.classification == "accepted"].shape[0] == 0:
-        LGR.warning("No BOLD components detected! Please check data and results!")
-
+        pass
     mmix_orig = mmix.copy()
     if tedort:
         acc_idx = comptable.loc[~comptable.classification.str.contains("rejected")].index.values
@@ -371,11 +393,6 @@ def sage_workflow(
         ]
         mixing_df = pd.DataFrame(data=mmix, columns=comp_names)
         io_generator.save_file(mixing_df, "ICA orthogonalized mixing tsv")
-        RepLGR.info(
-            "Rejected components' time series were then "
-            "orthogonalized with respect to accepted components' time "
-            "series."
-        )
 
     imageio.writeresults(
         data_oc,
@@ -412,25 +429,12 @@ def sage_workflow(
     with open(io_generator.get_name("data description json"), "w") as fo:
         json.dump(derivative_metadata, fo, sort_keys=True, indent=4)
 
-    RepLGR.info(
-        "This workflow used numpy \\citep{van2011numpy}, scipy \\citep{virtanen2020scipy}, "
-        "pandas \\citep{mckinney2010data,reback2020pandas}, "
-        "scikit-learn \\citep{pedregosa2011scikit}, "
-        "nilearn, bokeh \\citep{bokehmanual}, matplotlib \\citep{Hunter:2007}, "
-        "and nibabel \\citep{brett_matthew_2019_3233118}."
-    )
+    # with open(repname, "r") as fo:
+    #     report = [line.rstrip() for line in fo.readlines()]
+    #     report = " ".join(report)
 
-    RepLGR.info(
-        "This workflow also used the Dice similarity index "
-        "\\citep{dice1945measures,sorensen1948method}."
-    )
-
-    with open(repname, "r") as fo:
-        report = [line.rstrip() for line in fo.readlines()]
-        report = " ".join(report)
-
-    with open(repname, "w") as fo:
-        fo.write(report)
+    # with open(repname, "w") as fo:
+    #     fo.write(report)
 
     # Collect BibTeX entries for cited papers
     references = get_description_references(report)
@@ -439,7 +443,6 @@ def sage_workflow(
         fo.write(references)
 
     if not no_reports:
-        LGR.info("Making figures folder with static component maps and timecourse plots.")
 
         dn_ts, hikts, lowkts = imageio.denoise_ts(data_oc, mmix, mask_denoise, comptable)
 
@@ -462,16 +465,9 @@ def sage_workflow(
         )
 
         if sys.version_info.major == 3 and sys.version_info.minor < 6:
-            warn_msg = (
-                "Reports requested but Python version is less than "
-                "3.6.0. Dynamic reports will not be generated."
-            )
-            LGR.warn(warn_msg)
+            pass
         else:
-            LGR.info("Generating dynamic report")
-            reporting.generate_report(io_generator, tr=img_t_r)
-
-    LGR.info("Workflow completed")
+            pass
     utils.teardown_loggers()
 
 
