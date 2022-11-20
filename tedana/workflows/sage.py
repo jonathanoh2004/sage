@@ -160,9 +160,10 @@ def sage_workflow(
     tes,
     out_dir=".",
     mask=None,
-    prefix="",
     convention="bids",
+    prefix="",
     fittype="loglin",
+    combmode="t2s",
     tedpca="aic",
     fixed_seed=42,
     maxit=500,
@@ -173,10 +174,13 @@ def sage_workflow(
     png_cmap="coolwarm",
     verbose=False,
     low_mem=False,
-    fitmode="all",
-    combmode="t2s",
     debug=False,
     quiet=False,
+    t2smap=None,
+    mixm=None,
+    ctab=None,
+    manacc=None,
+    fitmode="all",
 ):
 
     out_dir = os.path.abspath(out_dir)
