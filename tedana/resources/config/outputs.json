@@ -7,13 +7,33 @@
         "orig": "t2svG",
         "bidsv1.5.0": "T2starmap"
     },
+    "t2 img": {
+        "orig": "t2vG",
+        "bidsv1.5.0": "T2map"
+    },
     "s0 img": {
         "orig": "s0vG",
+        "bidsv1.5.0": "S0map"
+    },
+    "s0_I img": {
+        "orig": "s0IvG",
+        "bidsv1.5.0": "S0map"
+    },
+    "s0_II img": {
+        "orig": "s0IIvG",
         "bidsv1.5.0": "S0map"
     },
     "combined img": {
         "orig": "ts_OC",
         "bidsv1.5.0": "desc-optcom_bold"
+    },
+    "combined T2* img": {
+        "orig": "t2star_OC",
+        "bidsv1.5.0": "desc-optcom_bold"
+    },
+    "combined T2 img": {
+        "orig": "t2_OC",
+        "bidsv1.5.0": "desc-optcom"
     },
     "ICA components img": {
         "orig": "ica_components",
