@@ -30,9 +30,9 @@ from tedana import (
     utils,
     gscontrol as gsc,
 )
-from ..bibtex import get_description_references
-from ..stats import computefeats2
-from ..workflows.parser_utils import check_tedpca_value, is_valid_file
+from tedana.bibtex import get_description_references
+from tedana.stats import computefeats2
+from tedana.workflows.parser_utils import check_tedpca_value, is_valid_file
 
 LGR = logging.getLogger("GENERAL")
 RepLGR = logging.getLogger("REPORT")

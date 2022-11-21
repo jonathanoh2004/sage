@@ -4,13 +4,13 @@ import nibabel as nib
 import numpy as np
 
 
-data = np.arange(float(3 * 3 * 3 * 4)).reshape(3, 3, 3, 4)
+data = np.arange(float(3 * 3 * 3 * 4)).reshape(3, 3, 3, 4) / 50
 
-img1 = nib.Nifti1Image(data, affine=np.eye(4))
-img2 = nib.Nifti1Image(data + 10, affine=np.eye(4))
-img3 = nib.Nifti1Image(data + 100, affine=np.eye(4))
-img4 = nib.Nifti1Image(data + 1000, affine=np.eye(4))
-img5 = nib.Nifti1Image(data + 10000, affine=np.eye(4))
+img1 = nib.Nifti1Image(data + 4, affine=np.eye(4))
+img2 = nib.Nifti1Image(data + 3.7, affine=np.eye(4))
+img3 = nib.Nifti1Image(data + 2.3, affine=np.eye(4))
+img4 = nib.Nifti1Image(data + 1.2, affine=np.eye(4))
+img5 = nib.Nifti1Image(data + 0.4, affine=np.eye(4))
 
 cwd = os.path.dirname(__file__)
 

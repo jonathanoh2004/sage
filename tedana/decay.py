@@ -477,7 +477,7 @@ def fit_decay_ts(data, tes, mask, adaptive_mask, fittype):
 ######################################################################################
 
 
-def fit_decay_sage(data, tes, fittype, report=True):
+def fit_decay_sage(data, tes, mask, fittype, report=True):
 
     if data.shape[1] != len(tes):
         raise ValueError(
@@ -485,53 +485,51 @@ def fit_decay_sage(data, tes, fittype, report=True):
             "of echoes provided (tes; {1})".format(data.shape[1], len(tes))
         )
 
+    if len(tes) != 5:
+        raise ValueError("Five echos are required for computing SAGE T2*, T2, and S0 maps")
+
     data = data.copy()
     if data.ndim == 2:
         data = data[:, :, None]
 
     if fittype == "loglin":
-        t2star_map, s0_I_map, t2_map, s0_II_map = fit_loglinear_sage(data, tes, report=report)
+        t2star_map, s0_I_map, t2_map, s0_II_map = fit_loglinear_sage(
+            data, tes, mask, report=report
+        )
     elif fittype == "curvefit":
         t2star_map, s0_I_map, t2_map, s0_II_map = fit_monoexponential_sage(
-            data, tes, report=report
+            data, tes, mask, report=report
         )
     else:
         raise ValueError("Unknown fittype option: {}".format(fittype))
 
-    # t2s_limited[np.isinf(t2s_limited)] = 500.0  # why 500?
-    # # let's get rid of negative values, but keep zeros where limited != full
-    # t2s_limited[(adaptive_mask_masked > 1) & (t2s_limited <= 0)] = 1.0
-    # t2s_limited = _apply_t2s_floor(t2s_limited, tes)
-    # s0_limited[np.isnan(s0_limited)] = 0.0  # why 0?
-    # t2s_full[np.isinf(t2s_full)] = 500.0  # why 500?
-    # t2s_full[t2s_full <= 0] = 1.0  # let's get rid of negative values!
-    # t2s_full = _apply_t2s_floor(t2s_full, tes)
-    # s0_full[np.isnan(s0_full)] = 0.0  # why 0?
+    t2star_map[np.isinf(t2star_map)] = 500.0  # why 500?
+    t2_map[np.isinf(t2_map)] = 500.0  # why 500?
+    t2star_map = _apply_t2s_floor(t2star_map, tes)
+    t2_map = _apply_t2s_floor(t2_map, tes)
+    s0_I_map[np.isnan(s0_I_map)] = 0.0  # why 0?
+    s0_II_map[np.isnan(s0_II_map)] = 0.0  # why 0?
 
-    # t2s_limited = utils.unmask(t2s_limited, mask)
-    # s0_limited = utils.unmask(s0_limited, mask)
-    # t2s_full = utils.unmask(t2s_full, mask)
-    # s0_full = utils.unmask(s0_full, mask)
-
-    # set a hard cap for the T2* map
+    # set a hard cap for the T2* and T2 maps
     # anything that is 10x higher than the 99.5 %ile will be reset to 99.5 %ile
-    # cap_t2s = stats.scoreatpercentile(t2s_limited.flatten(), 99.5, interpolation_method="lower")
-    # LGR.debug("Setting cap on T2* map at {:.5f}".format(cap_t2s * 10))
-    # t2s_limited[t2s_limited > cap_t2s * 10] = cap_t2s
+    cap_t2star = stats.scoreatpercentile(t2star_map.flatten(), 99.5, interpolation_method="lower")
+    t2star_map[t2star_map > cap_t2star * 10] = cap_t2star
+    cap_t2 = stats.scoreatpercentile(t2_map.flatten(), 99.5, interpolation_method="lower")
+    t2_map[t2_map > cap_t2 * 10] = cap_t2
 
     return t2star_map, s0_I_map, t2_map, s0_II_map
 
 
-def fit_monoexponential_sage(data_cat, echo_times, report=True):
+def fit_monoexponential_sage(data_cat, echo_times, mask, report=True):
     n_samp, _, n_vols = data_cat.shape
+    tese = echo_times[-1]
 
     t2star_map, s0_I_map, t2_map, s0_II_map = fit_loglinear_sage(
-        data_cat, echo_times, report=False
+        data_cat, echo_times, mask, report=False
     )
 
-    mid_echo_time = echo_times[-1] / 2
-    echo_times_idx_t2star = echo_times[echo_times > mid_echo_time]
-    echo_times_idx_t2 = echo_times[echo_times < echo_times[-1]]
+    echo_times_idx_t2star = echo_times[echo_times > tese / 2]
+    echo_times_idx_t2 = echo_times[echo_times < tese]
 
     data_2d_t2star = data_cat[:, echo_times_idx_t2star, :].reshape(n_samp, -1).T
     data_2d_t2 = data_cat[:, echo_times_idx_t2, :].reshape(n_samp, -1).T
@@ -584,41 +582,43 @@ def fit_monoexponential_sage(data_cat, echo_times, report=True):
     return t2star_map, s0_I_map, t2_map, s0_II_map
 
 
-def fit_loglinear_sage(data_cat, echo_times, report=True):
+def fit_loglinear_sage(data_cat, echo_times, mask, report=True):
+    # exclude samples that have no nonzero values
+    data_cat = data_cat[mask, :, :]
     n_samp, _, n_vols = data_cat.shape
+    tese = echo_times[-1]
 
-    mid_echo_time = echo_times[-1] / 2
-    te_idx_t2star = echo_times < echo_times[-1]
-    te_idx_t2 = echo_times > mid_echo_time
+    te_idx_I = echo_times < tese
+    te_idx_II = echo_times > tese / 2
 
-    # 1) Find T2* and S0_I values for all voxels
-    # data_2d: ((E x T) x S)
-    data_2d = data_cat[:, te_idx_t2star, :].reshape(n_samp, -1).T
-    log_data = np.log(np.abs(data_2d) + 1)
+    # 1) Find T2* and S0_I values across te and volume for each voxel independently
+    Y = data_cat[:, te_idx_I, :].reshape(n_samp, -1).T
+    Y = np.log(np.abs(Y) + 1)  # why take absolute value and why add 1?
 
-    x = np.column_stack([np.ones(np.sum(te_idx_t2star)), -1 * echo_times[te_idx_t2star]])
+    x = np.column_stack([np.ones(np.sum(te_idx_I)), -1 * echo_times[te_idx_I]])
     X = np.repeat(x, n_vols, axis=0)
 
     # Log-linear fit
-    betas = np.linalg.lstsq(X, log_data, rcond=None)[0]
+    betas = np.linalg.lstsq(X, Y, rcond=None)[0]
     t2star_map = 1 / betas[1, :].T
     s0_I_map = np.exp(betas[0, :]).T
 
-    # 2) Find T2 values and S0_II values for all voxels using T2* values
-    data_2d = data_cat[:, te_idx_t2, :].reshape(n_samp, -1).T
+    # 2) Find T2 values and S0_II values for all voxels using computed T2* values
+    Y = data_cat[:, te_idx_II, :].reshape(n_samp, -1).T
     constant = np.repeat(
-        (np.expand_dims(t2star_map, axis=1) * ((2 * echo_times[te_idx_t2]) - echo_times[-1])).T,
+        (
+            np.expand_dims(1 / t2star_map, axis=1)
+            * ((2 * np.expand_dims(echo_times[te_idx_II], axis=0)) - tese)
+        ),
         n_vols,
-        axis=0,
-    )
-    log_data = np.log(np.abs(data_2d) + 1) - constant
+        axis=1,
+    ).T
+    Y = np.log(np.abs(Y) + 1) - constant
 
-    x = np.column_stack(
-        [np.ones(np.sum(te_idx_t2)), (-2 * echo_times[te_idx_t2]) + echo_times[-1]]
-    )
+    x = np.column_stack([np.ones(np.sum(te_idx_II)), (-2 * echo_times[te_idx_II]) + tese])
     X = np.repeat(x, n_vols, axis=0)
 
-    betas = np.linalg.lstsq(X, log_data, rcond=None)[0]
+    betas = np.linalg.lstsq(X, Y, rcond=None)[0]
 
     t2_map = 1 / betas[1, :].T
     s0_II_map = np.exp(betas[0, :]).T
@@ -626,7 +626,7 @@ def fit_loglinear_sage(data_cat, echo_times, report=True):
     return t2star_map, s0_I_map, t2_map, s0_II_map
 
 
-def fit_decay_ts_sage(data, tes, fittype):
+def fit_decay_ts_sage(data, tes, mask, fittype):
     n_samples, _, n_vols = data.shape
     tes = np.array(tes)
 
@@ -638,7 +638,7 @@ def fit_decay_ts_sage(data, tes, fittype):
     report = True
     for vol in range(n_vols):
         t2star_map, s0_I_map, t2_map, s0_II_map = fit_decay_sage(
-            data[:, :, vol][:, :, None], tes, fittype, report=report
+            data[:, :, vol][:, :, None], tes, fittype, mask, report=report
         )
         t2star_map_vols[:, vol] = t2star_map
         s0_I_map_vols[:, vol] = s0_I_map

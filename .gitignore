@@ -1,4 +1,11 @@
 .gitignore
+tedana/resources/gendata/*.gz
+Notebooks/
+*.nii.gz
+*.tsv
+*.txt
+*.json
+figures/
 
 .DS_Store
 docs/generated/
