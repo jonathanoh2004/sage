@@ -2,6 +2,7 @@
 Functions to optimally combine data across echoes.
 """
 import logging
+import copy
 
 import numpy as np
 
@@ -231,7 +232,8 @@ def make_optcom(data, tes, adaptive_mask, t2s=None, combmode="t2s", verbose=True
     return combined
 
 
-def make_optcom_sage(data, tes, t2star_map, s0_I_map, t2_map, s0_II_map):
+def make_optcom_sage(data, tes, t2star_map, s0_I_map, t2_map, s0_II_map, mask):
+
     if data.ndim != 3:
         raise ValueError("Input data must be 3D (S x E x T)")
 
@@ -242,102 +244,98 @@ def make_optcom_sage(data, tes, t2star_map, s0_I_map, t2_map, s0_II_map):
             "{1}".format(len(tes), data.shape[1])
         )
 
-    # t2star_map = t2star_map[..., np.newaxis]  # add singleton
-    # t2_map = t2_map[..., np.newaxis]  # add singleton
+    data = data[mask]
 
-    combined_t2star_I, combined_t2_I = combine_sage_I(
-        data,
-        tes,
-        t2star_map,
-        s0_I_map,
-        report=True,
-    )
+    alpha_t2star_I, alpha_t2_I = weights_sage_I(tes, t2star_map, s0_I_map)
+    alpha_t2star_II, alpha_t2_II = weights_sage_II(tes, t2star_map, t2_map, s0_II_map)
 
-    combined_t2star_II, combined_t2_II = combine_sage_II(
-        data,
-        tes,
-        t2star_map,
-        t2_map,
-        s0_II_map,
-        report=True,
-    )
+    alpha_t2star_I = np.expand_dims(alpha_t2star_I, axis=2)
+    alpha_t2star_II = np.expand_dims(alpha_t2star_II, axis=2)
+    alpha_t2_I = np.expand_dims(alpha_t2_I, axis=2)
+    alpha_t2_II = np.expand_dims(alpha_t2_II, axis=2)
 
-    return combined_t2star_I, combined_t2star_II, combined_t2_I, combined_t2_II
+    idx_I = tes < (tes[-1] / 2)
+    idx_II = tes >= (tes[-1] / 2)
+
+    com1 = copy.deepcopy(data)
+    com2 = copy.deepcopy(data)
+
+    com1[:, idx_I, :] = (alpha_t2star_I / 2) * data[:, idx_I, :]
+    com1[:, idx_II, :] = (alpha_t2star_II / 2) * data[:, idx_II, :]
+
+    com2[:, idx_I, :] = (alpha_t2_I / 2) * data[:, idx_I, :]
+    com2[:, idx_II, :] = (alpha_t2_II / 2) * data[:, idx_II, :]
+
+    optcom_t2star = np.sum(com1, axis=1)
+    optcom_t2 = np.sum(com2, axis=1)
+
+    return optcom_t2star, optcom_t2
 
 
-def combine_sage_I(data, echo_times, t2star_map, s0_I_map, report=True):
-    ###
-    echo_times = np.expand_dims(echo_times, axis=0)
-    idx_I = echo_times < echo_times[0, -1]
+def weights_sage_I(tes, t2star_map, s0_I_map):
+    tese = tes[-1]
+    idx_I = tes < tese / 2
+    tes = np.expand_dims(tes, axis=0)
     s0_I_map = np.expand_dims(s0_I_map, axis=1)
     t2star_map = np.expand_dims(t2star_map, axis=1)
 
-    alpha_I = (s0_I_map * (-1 * echo_times[idx_I])) * np.exp(
-        (-1) * echo_times[idx_I] * (1 / t2star_map)
-    )
-    ###
+    alpha_I = (s0_I_map * (-1 * tes[0, idx_I])) * np.exp((1 / t2star_map) * (-1 * tes[0, idx_I]))
 
     # If all values across echos are 0, set to 1 to avoid
     # divide-by-zero errors
-    ax0_idx = np.where(np.all(alpha_I == 0, axis=1))
-    alpha_I[ax0_idx, :] = 1
+    alpha_I[np.where(np.all(alpha_I == 0, axis=1)), :] = 1
 
     # normalize
-    alpha_I = alpha_I / np.nansum(alpha_I)
+    alpha_I = alpha_I / np.expand_dims(np.sum(alpha_I, axis=1), axis=1)
 
-    combined_t2star_I = np.zeros((data.shape[0], data.shape[2]))
+    # combined_t2star_I = np.zeros((data.shape[0], data.shape[2]))
 
-    for samp_idx in range(data.shape[0]):
-        combined_t2star_I[samp_idx, :] = np.average(
-            data[samp_idx, idx_I[0, :], :], axis=0, weights=alpha_I[samp_idx, :]
-        )
+    # for samp_idx in range(data.shape[0]):
+    #     combined_t2star_I[samp_idx, :] = np.average(
+    #         data[samp_idx, idx_I[0, :], :], axis=0, weights=alpha_I[samp_idx, :]
+    #     )
 
-    # derivative with respect to t2 is 0, so corresponding weight is always all zeros
-    combined_t2_I = np.tile([0], combined_t2star_I.shape)
+    # # derivative with respect to t2 is 0, so corresponding weight is always all zeros
+    # combined_t2_I = np.tile([0], combined_t2star_I.shape)
 
-    return combined_t2star_I, combined_t2_I
+    return alpha_I, np.zeros(alpha_I.shape)
 
 
-def combine_sage_II(data, echo_times, t2star_map, t2_map, s0_II_map, report=True):
-    mid_echo_time = echo_times[-1] / 2
-    echo_times = np.expand_dims(echo_times, axis=0)
-    tese = echo_times[0, -1]  # spin echo te
+def weights_sage_II(tes, t2star_map, t2_map, s0_II_map):
+    tese = tes[-1]
+    idx_II = tes >= (tese / 2)
 
-    idx_II = echo_times > mid_echo_time
+    tes = np.expand_dims(tes, axis=0)
     s0_II_map = np.expand_dims(s0_II_map, axis=1)
     t2_map = np.expand_dims(t2_map, axis=1)
     t2star_map = np.expand_dims(t2star_map, axis=1)
 
-    term1 = s0_II_map * ((-1 * tese) + echo_times[idx_II])
-    term2 = (-1) * tese * ((1 / t2star_map) - (1 / t2_map))
-    term3 = (echo_times[idx_II]) * ((2 * (1 / t2_map)) - (1 / t2star_map))
+    const1 = s0_II_map * ((-1 * tese) + tes[0, idx_II])
+    const2 = s0_II_map * ((tese - (2 * tes[0, idx_II])))
+    exp1 = ((1 / t2star_map) - (1 / t2_map)) * (-1 * tese)
+    exp2 = ((2 * (1 / t2_map)) - (1 / t2star_map)) * (tes[0, idx_II])
 
-    alpha_t2star_II = term1 * np.exp(term2 - term3)
+    alpha_t2star_II = const1 * np.exp(exp1 - exp2)
+    alpha_t2_II = const2 * np.exp(exp1 - exp2)
 
-    term1 = s0_II_map * ((tese - (2 * echo_times[idx_II])))
-    term2 = (-1 * tese) * ((1 / t2star_map) - (1 / t2_map))
-    term3 = echo_times[idx_II] * ((2 * (1 / t2_map)) - (1 / t2star_map))
-
-    alpha_t2_II = term1 * np.exp(term2 - term3)
-
-    ax0_idx = np.where(np.all(alpha_t2star_II == 0, axis=1))
-    alpha_t2star_II[ax0_idx, :] = 1
-    ax0_idx = np.where(np.all(alpha_t2_II == 0, axis=1))
-    alpha_t2_II[ax0_idx, :] = 1
+    # If all values across echos are 0, set to 1 to avoid
+    # divide-by-zero errors
+    alpha_t2star_II[np.where(np.all(alpha_t2star_II == 0, axis=1)), :] = 1
+    alpha_t2_II[np.where(np.all(alpha_t2_II == 0, axis=1)), :] = 1
 
     # normalize
-    alpha_t2star_II = alpha_t2star_II / np.sum(alpha_t2star_II)
-    alpha_t2_II = alpha_t2_II / np.sum(alpha_t2_II)
+    alpha_t2star_II = alpha_t2star_II / np.expand_dims(np.sum(alpha_t2star_II, axis=1), axis=1)
+    alpha_t2_II = alpha_t2_II / np.expand_dims(np.sum(alpha_t2_II, axis=1), axis=1)
 
-    combined_t2star_II = np.zeros((data.shape[0], data.shape[2]))
-    combined_t2_II = np.zeros((data.shape[0], data.shape[2]))
+    # combined_t2star_II = np.zeros((data.shape[0], data.shape[2]))
+    # combined_t2_II = np.zeros((data.shape[0], data.shape[2]))
 
-    for samp_idx in range(data.shape[0]):
-        combined_t2star_II[samp_idx, :] = np.average(
-            data[samp_idx, idx_II[0, :], :], axis=0, weights=alpha_t2star_II[samp_idx, :]
-        )
-        combined_t2_II[samp_idx, :] = np.average(
-            data[samp_idx, idx_II[0, :], :], axis=0, weights=alpha_t2_II[samp_idx, :]
-        )
+    # for samp_idx in range(data.shape[0]):
+    #     combined_t2star_II[samp_idx, :] = np.average(
+    #         data[samp_idx, idx_II[0, :], :], axis=0, weights=alpha_t2star_II[samp_idx, :]
+    #     )
+    #     combined_t2_II[samp_idx, :] = np.average(
+    #         data[samp_idx, idx_II[0, :], :], axis=0, weights=alpha_t2_II[samp_idx, :]
+    #     )
 
-    return combined_t2star_II, combined_t2_II
+    return alpha_t2star_II, alpha_t2_II

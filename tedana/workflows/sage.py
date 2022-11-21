@@ -221,30 +221,30 @@ def sage_workflow(
 
     # LGR.info("Computing optimal combination")
     # optimally combine data
-    data_oc_t2star_I, _, _, data_oc_t2_II = combine.make_optcom_sage(
-        catd, tes, t2star_map, s0_I_map, t2_map, s0_II_map
+    optcom_t2star, optcom_t2 = combine.make_optcom_sage(
+        catd, tes, t2star_map, s0_I_map, t2_map, s0_II_map, mask
     )
 
     # clean up numerical errors
-    for arr in (data_oc_t2star_I, data_oc_t2_II, s0_I_map, t2star_map, s0_II_map, t2_map):
+    for arr in (optcom_t2star, optcom_t2):
         np.nan_to_num(arr, copy=False)
 
     s0_I_map[s0_I_map < 0] = 0
     s0_II_map[s0_II_map < 0] = 0
     t2star_map[t2star_map < 0] = 0
 
-    io_generator.save_file(s0_I_map, "s0_I img")
-    io_generator.save_file(s0_II_map, "s0_II img")
+    io_generator.save_file(utils.unmask(s0_I_map, mask), "s0_I img")
+    io_generator.save_file(utils.unmask(s0_II_map, mask), "s0_II img")
     io_generator.save_file(
-        utils.millisec2sec(t2star_map),
+        utils.unmask(utils.millisec2sec(t2star_map), mask),
         "t2star img",
     )
     io_generator.save_file(
-        utils.millisec2sec(t2_map),
+        utils.unmask(utils.millisec2sec(t2_map), mask),
         "t2 img",
     )
-    io_generator.save_file(data_oc_t2star_I, "combined T2* img")
-    io_generator.save_file(data_oc_t2_II, "combined T2 img")
+    io_generator.save_file(utils.unmask(optcom_t2star, mask), "combined T2* img")
+    io_generator.save_file(utils.unmask(optcom_t2, mask), "combined T2 img")
 
     # Write out BIDS-compatible description file
     derivative_metadata = {
@@ -269,10 +269,10 @@ def sage_workflow(
     ####################### DENOISING ######################################################
     ########################################################################################
 
-    for data_oc in (data_oc_t2star_I, data_oc_t2_II):
+    for data_oc in (optcom_t2star, optcom_t2):
 
-        mask = np.tile([True], data_oc_t2star_I.shape[0])
-        masksum = np.tile([n_echos], data_oc_t2star_I.shape[0])
+        # mask = np.tile([True], data_oc_t2star_I.shape[0])
+        masksum = np.tile([n_echos], n_samps)
 
         # regress out global signal unless explicitly not desired
         if "gsr" in gscontrol:
@@ -300,9 +300,6 @@ def sage_workflow(
             io_generator.save_file(utils.unmask(dd, mask), "whitened img")
 
         # mask_denoise, low_mem, mask_clf, masksum_clf
-
-        mmix = None  # ADDED
-        comptable = None  # ADDED
 
         # Perform ICA, calculate metrics, and apply decision tree
         # Restart when ICA fails to converge or too few BOLD components found
@@ -440,11 +437,11 @@ def sage_workflow(
         # with open(repname, "w") as fo:
         #     fo.write(report)
 
-        # Collect BibTeX entries for cited papers
-        references = get_description_references(report)
+        # # Collect BibTeX entries for cited papers
+        # references = get_description_references(report)
 
-        with open(bibtex_file, "w") as fo:
-            fo.write(references)
+        # with open(bibtex_file, "w") as fo:
+        #     fo.write(references)
 
         if not no_reports:
 
