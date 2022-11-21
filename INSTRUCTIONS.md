@@ -1,9 +1,15 @@
 # README
-git clone https://github.com/awstanton/tedana-forked.git
+# clone repository locally
+git clone https://github.com/awstanton/tedana-forked.
+# create virtual environment
 python -m venv env
+# activate virtual environment
 # for windows, the below line should be:
 #   env/Scripts/Activate.ps1
 source env/bin/activate
+# install dependencies from setup.py file
 pip install -e .
+# Replace {RootPath} with the path to your data
 python tedana\workflows\sage.py -d {RootPath}\SAGE-testdata\Multigre_SAGE_e1_tshift_bet.nii.gz {RootPath}\SAGE-testdata\Multigre_SAGE_e2_tshift_bet.nii.gz {RootPath}\SAGE-testdata\Multigre_SAGE_e3_tshift_bet.nii.gz {RootPath}\SAGE-testdata\Multigre_SAGE_e4_tshift_bet.nii.gz {RootPath}\SAGE-testdata\Multigre_SAGE_e5_tshift_bet.nii.gz -e 7.9 27 58 77 96
+# deactivate virtual environment
 deactivate
