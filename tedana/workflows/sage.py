@@ -283,7 +283,7 @@ def sage_workflow(
         # Identify and remove thermal noise from data
         dd, n_components = decomposition.tedpca(
             catd,
-            data_oc,
+            utils.unmask(data_oc, mask),
             combmode,
             mask,
             masksum,
@@ -331,7 +331,7 @@ def sage_workflow(
             ]
             comptable = metrics.collect.generate_metrics(
                 catd,
-                data_oc,
+                utils.unmask(data_oc, mask),
                 mmix,
                 masksum,
                 tes,
@@ -353,7 +353,7 @@ def sage_workflow(
         comp_names = comptable["Component"].values
         mixing_df = pd.DataFrame(data=mmix, columns=comp_names)
         io_generator.save_file(mixing_df, "ICA mixing tsv")
-        betas_oc = utils.unmask(computefeats2(data_oc, mmix, mask), mask)
+        betas_oc = utils.unmask(computefeats2(utils.unmask(data_oc, mask), mmix, mask), mask)
         io_generator.save_file(betas_oc, "z-scored ICA components img")
 
         # Save component table and associated json
@@ -396,7 +396,7 @@ def sage_workflow(
             io_generator.save_file(mixing_df, "ICA orthogonalized mixing tsv")
 
         imageio.writeresults(
-            data_oc,
+            utils.unmask(data_oc, mask),
             mask=mask,
             comptable=comptable,
             mmix=mmix,
@@ -405,7 +405,9 @@ def sage_workflow(
         )
 
         if "mir" in gscontrol:
-            gsc.minimum_image_regression(data_oc, mmix, mask, comptable, io_generator)
+            gsc.minimum_image_regression(
+                utils.unmask(data_oc, mask), mmix, mask, comptable, io_generator
+            )
 
         if verbose:
             imageio.writeresults_echoes(catd, mmix, mask, comptable, io_generator)
@@ -445,10 +447,12 @@ def sage_workflow(
 
         if not no_reports:
 
-            dn_ts, hikts, lowkts = imageio.denoise_ts(data_oc, mmix, mask, comptable)
+            dn_ts, hikts, lowkts = imageio.denoise_ts(
+                utils.unmask(data_oc, mask), mmix, mask, comptable
+            )
 
             reporting.static_figures.carpet_plot(
-                optcom_ts=data_oc,
+                optcom_ts=utils.unmask(data_oc, mask),
                 denoised_ts=dn_ts,
                 hikts=hikts,
                 lowkts=lowkts,
@@ -457,7 +461,7 @@ def sage_workflow(
                 gscontrol=gscontrol,
             )
             reporting.static_figures.comp_figures(
-                data_oc,
+                utils.unmask(data_oc, mask),
                 mask=mask,
                 comptable=comptable,
                 mmix=mmix_orig,
