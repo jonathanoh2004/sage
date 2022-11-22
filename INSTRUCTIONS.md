@@ -4,10 +4,10 @@ git clone https://github.com/awstanton/tedana-forked.
 # create virtual environment
 python -m venv env
 # activate virtual environment
-# for Windows Powershell, the below line should be:
-#   env/Scripts/Activate.ps1
-# for Windows cmd, the below line should be:
-#   env/Scripts/activate.bat
+#   for Windows Powershell, it should be:
+#       env/Scripts/Activate.ps1
+#   for Windows cmd, it should be:
+#       env/Scripts/activate.bat
 source env/bin/activate
 # install dependencies from setup.py file
 pip install -e .
