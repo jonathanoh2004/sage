@@ -71,7 +71,7 @@ def _get_parser():
         type=str,
         metavar="PATH",
         help="Output directory.",
-        default=".",
+        default=None,
     )
     optional.add_argument(
         "--mask",
@@ -158,7 +158,7 @@ def _get_parser():
 def sage_workflow(
     data,
     tes,
-    out_dir=".",
+    out_dir="outputs",
     mask=None,
     convention="bids",
     prefix="",
@@ -176,50 +176,42 @@ def sage_workflow(
     low_mem=False,
     debug=False,
     quiet=False,
-    t2smap=None,
     mixm=None,
     ctab=None,
     manacc=None,
     fitmode="all",
 ):
-
-    out_dir = os.path.abspath(out_dir)
-    if not os.path.isdir(out_dir):
-        os.mkdir(out_dir)
-
     # ensure tes are in appropriate format
     tes = np.array([float(te) for te in tes])
-    n_echos = len(tes)
 
     # Coerce gscontrol to list
     if not isinstance(gscontrol, list):
         gscontrol = [gscontrol]
 
+    # TODO: change naming of data to datafiles or similar
     # coerce data to samples x echos x time array
     if isinstance(data, str):
         data = [data]
 
-    catd, ref_img = imageio.load_data(data, n_echos=n_echos)
-    io_generator = imageio.OutputGenerator(
-        ref_img,
-        convention=convention,
-        out_dir=out_dir,
-        prefix=prefix,
-        config="auto",
-        verbose=verbose,
-    )
+    catd, ref_img = imageio.load_data(data, n_echos=len(tes))
+
+    ########################################################################################
+    ####################### MAPS AND COMBINATIONS ##########################################
+    ########################################################################################
+
     n_samps, n_echos, n_vols = catd.shape
 
+    # Note: this mask is used in this section as well as in the denoising section
     mask = np.any(catd != 0, axis=(1, 2))
 
+    # fit parameters
     if fitmode == "all":
         (t2star_map, s0_I_map, t2_map, s0_II_map) = decay.fit_decay_sage(catd, tes, mask, fittype)
-    else:
-        (t2star_map, s0_I_map, t2_map, s0_II_map) = decay.fit_decay_ts_sage(
-            catd, tes, mask, fittype
-        )
+    # else:
+    #     (t2star_map, s0_I_map, t2_map, s0_II_map) = decay.fit_decay_ts_sage(
+    #         catd, tes, mask, fittype
+    #     )
 
-    # LGR.info("Computing optimal combination")
     # optimally combine data
     optcom_t2star, optcom_t2 = combine.make_optcom_sage(
         catd, tes, t2star_map, s0_I_map, t2_map, s0_II_map, mask
@@ -232,6 +224,20 @@ def sage_workflow(
     s0_I_map[s0_I_map < 0] = 0
     s0_II_map[s0_II_map < 0] = 0
     t2star_map[t2star_map < 0] = 0
+    t2_map[t2_map < 0] = 0
+
+    out_dir = os.path.abspath(out_dir)
+    if not os.path.isdir(out_dir):
+        os.mkdir(out_dir)
+
+    io_generator = imageio.OutputGenerator(
+        ref_img,
+        convention=convention,
+        out_dir=out_dir,
+        prefix=prefix,
+        config="auto",
+        verbose=verbose,
+    )
 
     io_generator.save_file(utils.unmask(s0_I_map, mask), "s0_I img")
     io_generator.save_file(utils.unmask(s0_II_map, mask), "s0_II img")
@@ -246,30 +252,27 @@ def sage_workflow(
     io_generator.save_file(utils.unmask(optcom_t2star, mask), "combined T2* img")
     io_generator.save_file(utils.unmask(optcom_t2, mask), "combined T2 img")
 
-    # Write out BIDS-compatible description file
-    derivative_metadata = {
-        "Name": "t2smap Outputs",
-        "BIDSVersion": "1.5.0",
-        "DatasetType": "derivative",
-        "GeneratedBy": [
-            {
-                "Name": "tedana",
-                "Version": __version__,
-                "Description": (
-                    "A pipeline estimating T2* from multi-echo fMRI data and "
-                    "combining data across echoes."
-                ),
-                "CodeURL": "https://github.com/ME-ICA/tedana",
-            }
-        ],
-    }
-    io_generator.save_file(derivative_metadata, "data description json")
-
     ########################################################################################
     ####################### DENOISING ######################################################
     ########################################################################################
 
-    for data_oc in (optcom_t2star, optcom_t2):
+    iter_data = [optcom_t2star, optcom_t2]
+    iter_labels = ["T2star", "T2"]
+
+
+    for data_oc, iter_label in zip(iter_data, iter_labels):
+        out_dir = os.path.abspath(out_dir + "_" + iter_label)
+        if not os.path.isdir(out_dir):
+            os.mkdir(out_dir)
+
+        io_generator = imageio.OutputGenerator(
+                ref_img,
+                convention=convention,
+                out_dir=out_dir,
+                prefix=prefix,
+                config="auto",
+                verbose=verbose,
+            )
 
         # mask = np.tile([True], data_oc_t2star_I.shape[0])
         masksum = np.tile([n_echos], n_samps)
@@ -277,8 +280,6 @@ def sage_workflow(
         # regress out global signal unless explicitly not desired
         if "gsr" in gscontrol:
             catd, data_oc = gsc.gscontrol_raw(catd, data_oc, n_echos, io_generator)
-
-        # fout = io_generator.save_file(data_oc, "combined img")
 
         # Identify and remove thermal noise from data
         dd, n_components = decomposition.tedpca(
@@ -299,13 +300,13 @@ def sage_workflow(
         if verbose:
             io_generator.save_file(utils.unmask(dd, mask), "whitened img")
 
-        # mask_denoise, low_mem, mask_clf, masksum_clf
-
         # Perform ICA, calculate metrics, and apply decision tree
         # Restart when ICA fails to converge or too few BOLD components found
         keep_restarting = True
         n_restarts = 0
         seed = fixed_seed
+
+
         while keep_restarting:
             mmix, seed = decomposition.tedica(
                 dd, n_components, seed, maxit, maxrestart=(maxrestart - n_restarts)
@@ -343,11 +344,13 @@ def sage_workflow(
 
             n_bold_comps = comptable[comptable.classification == "accepted"].shape[0]
             if (n_restarts < maxrestart) and (n_bold_comps == 0):
-                pass
+                print("No BOLD components found. Re-attempting ICA.")
             elif n_bold_comps == 0:
+                print("No BOLD components found, but maximum number of restarts reached.")
                 keep_restarting = False
             else:
                 keep_restarting = False
+
 
         # Write out ICA files.
         comp_names = comptable["Component"].values
@@ -375,7 +378,7 @@ def sage_workflow(
             json.dump(decomp_metadata, fo, sort_keys=True, indent=4)
 
         if comptable[comptable.classification == "accepted"].shape[0] == 0:
-            pass
+            print("No BOLD components detected! Please check data and results!")
         mmix_orig = mmix.copy()
         if tedort:
             acc_idx = comptable.loc[
@@ -412,26 +415,6 @@ def sage_workflow(
         if verbose:
             imageio.writeresults_echoes(catd, mmix, mask, comptable, io_generator)
 
-        # Write out BIDS-compatible description file
-        derivative_metadata = {
-            "Name": "tedana Outputs",
-            "BIDSVersion": "1.5.0",
-            "DatasetType": "derivative",
-            "GeneratedBy": [
-                {
-                    "Name": "tedana",
-                    "Version": __version__,
-                    "Description": (
-                        "A denoising pipeline for the identification and removal "
-                        "of non-BOLD noise from multi-echo fMRI data."
-                    ),
-                    "CodeURL": "https://github.com/ME-ICA/tedana",
-                }
-            ],
-        }
-        with open(io_generator.get_name("data description json"), "w") as fo:
-            json.dump(derivative_metadata, fo, sort_keys=True, indent=4)
-
         # with open(repname, "r") as fo:
         #     report = [line.rstrip() for line in fo.readlines()]
         #     report = " ".join(report)
@@ -446,7 +429,6 @@ def sage_workflow(
         #     fo.write(references)
 
         if not no_reports:
-
             dn_ts, hikts, lowkts = imageio.denoise_ts(
                 utils.unmask(data_oc, mask), mmix, mask, comptable
             )
@@ -469,10 +451,6 @@ def sage_workflow(
                 png_cmap=png_cmap,
             )
 
-            if sys.version_info.major == 3 and sys.version_info.minor < 6:
-                pass
-            else:
-                pass
     utils.teardown_loggers()
 
 

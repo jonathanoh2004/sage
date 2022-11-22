@@ -488,6 +488,7 @@ def fit_decay_sage(data, tes, mask, fittype, report=True):
     if len(tes) != 5:
         raise ValueError("Five echos are required for computing SAGE T2*, T2, and S0 maps")
 
+    # TODO: probably remove these three lines as not required
     data = data.copy()
     if data.ndim == 2:
         data = data[:, :, None]
