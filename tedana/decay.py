@@ -609,7 +609,7 @@ def fit_loglinear_sage(data_cat, echo_times, mask, report=True):
     constant = np.repeat(
         (
             np.expand_dims(1 / t2star_map, axis=1)
-            * ((2 * np.expand_dims(echo_times[te_idx_II], axis=0)) - tese)
+            * ((np.expand_dims(echo_times[te_idx_II], axis=0)) - tese)
         ),
         n_vols,
         axis=1,
