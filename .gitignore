@@ -6,6 +6,7 @@ Notebooks/
 *.txt
 *.json
 figures/
+output_archive/
 
 .DS_Store
 docs/generated/

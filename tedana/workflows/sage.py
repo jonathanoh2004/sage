@@ -11,6 +11,7 @@ import argparse
 import json
 import numpy as np
 import pandas as pd
+import nilearn.image
 from scipy import stats
 from tedana import (
     __version__,
@@ -121,7 +122,7 @@ def _get_parser():
             '"ts" means that the model is fit, per voxel '
             "and per timepoint."
         ),
-        default="all",
+        default="ts",
     )
     optional.add_argument(
         "--combmode",
@@ -163,6 +164,7 @@ def sage_workflow(
     convention="bids",
     prefix="",
     fittype="loglin",
+    fitmode="ts",
     combmode="t2s",
     tedpca="aic",
     fixed_seed=42,
@@ -179,7 +181,6 @@ def sage_workflow(
     mixm=None,
     ctab=None,
     manacc=None,
-    fitmode="all",
 ):
     # ensure tes are in appropriate format
     tes = np.array([float(te) for te in tes])
@@ -201,18 +202,27 @@ def sage_workflow(
 
     n_samps, n_echos, n_vols = catd.shape
 
-    # Note: this mask is used in this section as well as in the denoising section
-    mask = np.any(catd != 0, axis=(1, 2))
+    if mask is None:
+        # Note: this mask is used in this section as well as in the denoising section
+        mask = np.any(catd != 0, axis=(1, 2))
+    else:
+        mask = nilearn.image.load_img(mask).get_fdata().reshape(catd.shape[0], 1)
 
-    # fit parameters
-    if fitmode == "all":
-        (t2star_map, s0_I_map, t2_map, s0_II_map) = decay.fit_decay_sage(catd, tes, mask, fittype)
-    # else:
-    #     (t2star_map, s0_I_map, t2_map, s0_II_map) = decay.fit_decay_ts_sage(
-    #         catd, tes, mask, fittype
-    #     )
+    ### Fit Parameters ###
+    # each result is in format (t2star_map, s0_I_map, t2_map, s0_II_map)
+    # where there is one result if fitmode is "all" and otherwise
+    # there is one result for each time point
+    t2star_maps, s0_I_maps, t2_maps, delta_maps = decay.fit_decay_sage(catd, tes, mask, fittype, fitmode)
 
-    # # optimally combine data
+    t2star_maps[np.logical_or(np.isnan(t2star_maps), np.isinf(t2star_maps))] = 0
+    s0_I_maps[np.logical_or(np.isnan(s0_I_maps), np.isinf(s0_I_maps))] = 0
+    t2_maps[np.logical_or(np.isnan(t2_maps), np.isinf(t2_maps))] = 0
+    delta_maps[np.logical_or(np.isnan(delta_maps), np.isinf(delta_maps))] = 0
+
+    s0_II_maps = (1 / delta_maps) * s0_I_maps
+    s0_II_maps[np.logical_or(np.isnan(s0_II_maps), np.isinf(s0_II_maps))] = 0
+
+    # ### optimally combine data ###
     # optcom_t2star, optcom_t2 = combine.make_optcom_sage(
     #     catd, tes, t2star_map, s0_I_map, t2_map, s0_II_map, mask
     # )
@@ -221,10 +231,10 @@ def sage_workflow(
     # for arr in (optcom_t2star, optcom_t2):
     #     np.nan_to_num(arr, copy=False)
 
-    s0_I_map[s0_I_map < 0] = 0
-    s0_II_map[s0_II_map < 0] = 0
-    t2star_map[t2star_map < 0] = 0
-    t2_map[t2_map < 0] = 0
+    # s0_I_map[s0_I_map < 0] = 0
+    # s0_II_map[s0_II_map < 0] = 0
+    # t2star_map[t2star_map < 0] = 0
+    # t2_map[t2_map < 0] = 0
 
     out_dir = os.path.abspath("outputs")
     if not os.path.isdir(out_dir):
@@ -239,14 +249,14 @@ def sage_workflow(
         verbose=verbose,
     )
 
-    io_generator.save_file(utils.unmask(s0_I_map[mask], mask), "s0_I img")
-    io_generator.save_file(utils.unmask(s0_II_map[mask], mask), "s0_II img")
+    io_generator.save_file(s0_I_maps, "s0_I img")
+    io_generator.save_file(s0_II_maps, "s0_II img")
     io_generator.save_file(
-        utils.unmask(utils.millisec2sec(t2star_map[mask]), mask),
+        utils.millisec2sec(t2star_maps),
         "t2star img",
     )
     io_generator.save_file(
-        utils.unmask(utils.millisec2sec(t2_map[mask]), mask),
+        utils.millisec2sec(t2_maps),
         "t2 img",
     )
     # io_generator.save_file(utils.unmask(optcom_t2star, mask), "combined T2* img")
