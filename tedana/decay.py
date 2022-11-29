@@ -585,18 +585,21 @@ def fit_monoexponential_sage(data_cat, echo_times, mask, report=True):
 
 def fit_loglinear_sage(data_cat, echo_times, mask, report=True):
     # exclude samples that have no nonzero values
-    data_cat = data_cat[mask, :, :]
     n_samp, _, n_vols = data_cat.shape
+    data_cat = data_cat[mask, :, :]
+    # n_samp, _, n_vols = data_cat.shape
     tese = echo_times[-1]
 
     te_idx_I = echo_times < tese
     te_idx_II = echo_times > tese / 2
 
     # 1) Find T2* and S0_I values across te and volume for each voxel independently
-    Y = data_cat[:, te_idx_I, :].reshape(n_samp, -1).T
+    Y = utils.unmask(data_cat, mask).reshape(n_samp, -1).T
     Y = np.log(np.abs(Y) + 1)  # why take absolute value and why add 1?
 
-    x = np.column_stack([np.ones(np.sum(te_idx_I)), -1 * echo_times[te_idx_I]])
+    R2star_regressor = np.array([-1 * echo_times[0], -1 * echo_times[1], -1 * echo_times[2], -1 * echo_times[3], 0])
+
+    x = np.column_stack([np.ones(len(echo_times)), R2star_regressor])
     X = np.repeat(x, n_vols, axis=0)
 
     # Log-linear fit
@@ -605,23 +608,26 @@ def fit_loglinear_sage(data_cat, echo_times, mask, report=True):
     s0_I_map = np.exp(betas[0, :]).T
 
     # 2) Find T2 values and S0_II values for all voxels using computed T2* values
-    Y = data_cat[:, te_idx_II, :].reshape(n_samp, -1).T
-    constant = np.repeat(
-        (
-            np.expand_dims(1 / t2star_map, axis=1)
-            * ((np.expand_dims(echo_times[te_idx_II], axis=0)) - tese)
-        ),
-        n_vols,
-        axis=1,
-    ).T
-    Y = np.log(np.abs(Y) + 1) - constant
+    # Y = data_cat[:, te_idx_II, :].reshape(n_samp, -1).T
+    # constant = np.repeat(
+    #     (
+    #         np.expand_dims(1 / t2star_map, axis=1)
+    #         * ((np.expand_dims(echo_times[te_idx_II], axis=0)) - tese)
+    #     ),
+    #     n_vols,
+    #     axis=1,
+    # ).T
+    # Y = np.log(np.abs(Y) + 1) - constant
 
-    x = np.column_stack([np.ones(np.sum(te_idx_II)), (-2 * echo_times[te_idx_II]) + tese])
+    R2star_regressor = np.array([-1 * echo_times[0], -1 * echo_times[1], echo_times[2] - tese, echo_times[3] - tese, 0])
+    R2_regressor = np.array([0, 0, tese - (2 * echo_times[2]), tese - (2 * echo_times[3]), -1 * tese])
+
+    x = np.column_stack([np.ones(len(echo_times)), R2star_regressor, R2_regressor])
     X = np.repeat(x, n_vols, axis=0)
 
     betas = np.linalg.lstsq(X, Y, rcond=None)[0]
 
-    t2_map = 1 / betas[1, :].T
+    t2_map = 1 / betas[2, :].T
     s0_II_map = np.exp(betas[0, :]).T
 
     return t2star_map, s0_I_map, t2_map, s0_II_map
