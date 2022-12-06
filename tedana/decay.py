@@ -519,8 +519,8 @@ def fit_loglinear_sage(data_cat, echo_times, mask, report=True):
     echo_times = np.array(echo_times).reshape(n_echos, 1)
     tese = echo_times[-1, 0]
 
-    Y = data_cat.reshape(n_samps, -1).T
-    Y = np.log(Y) * (mask.T)
+    Y = data_cat.swapaxes(1,2).reshape((n_samps * n_vols, -1)).T
+    Y = np.log(Y) * (np.repeat(mask.astype(bool), axis=0, repeats=n_vols).T)
 
     # x_r2star = np.replace(echo_times.copy()  * -1)
     # x_r2star[-1, 0] = 0
@@ -537,15 +537,26 @@ def fit_loglinear_sage(data_cat, echo_times, mask, report=True):
     x_r2star = np.array([-1 * echo_times[0, 0], -1 * echo_times[1, 0], echo_times[2, 0] - tese, echo_times[3, 0] - tese, 0])
     x_r2 = np.array([0, 0, tese - (2 * echo_times[2, 0]), tese - (2 * echo_times[3, 0]), -1 * tese])
 
-    x = np.column_stack([x_s0_I, x_delta, x_r2star, x_r2])
-    X = np.repeat(x, n_vols, axis=0)
+    X = np.column_stack([x_s0_I, x_delta, x_r2star, x_r2])
+    # X = np.repeat(x, n_vols, axis=0)
+
+    Y[~np.isfinite(Y)] = 0
 
     betas = np.linalg.lstsq(X, Y, rcond=None)[0]
+    # betas = scipy.linalg.lstsq(X, Y, cond=None, lapack_driver='gelsy')[0]
+
+    betas[~np.isfinite(betas)] = 0
 
     s0_I_map = np.exp(betas[0, :]).T
     delta_map = np.exp(betas[1, :]).T
     t2star_map = 1 / betas[2, :].T
     t2_map = 1 / betas[3, :].T
+
+    s0_I_map = s0_I_map.reshape(n_samps, n_vols)
+    delta_map = delta_map.reshape(n_samps, n_vols)
+    t2star_map = t2star_map.reshape(n_samps, n_vols)
+    t2_map = t2_map.reshape(n_samps, n_vols)
+
 
     return t2star_map, s0_I_map, t2_map, delta_map
 

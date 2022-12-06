@@ -183,7 +183,7 @@ def sage_workflow(
     manacc=None,
 ):
     # ensure tes are in appropriate format
-    tes = np.array([float(te) for te in tes])
+    tes = np.array([float(te) for te in tes]) / 1000
 
     # Coerce gscontrol to list
     if not isinstance(gscontrol, list):
@@ -208,19 +208,21 @@ def sage_workflow(
     else:
         mask = nilearn.image.load_img(mask).get_fdata().reshape(catd.shape[0], 1)
 
+    fitmode = "all"
+
     ### Fit Parameters ###
     # each result is in format (t2star_map, s0_I_map, t2_map, s0_II_map)
     # where there is one result if fitmode is "all" and otherwise
     # there is one result for each time point
     t2star_maps, s0_I_maps, t2_maps, delta_maps = decay.fit_decay_sage(catd, tes, mask, fittype, fitmode)
 
-    t2star_maps[np.logical_or(np.isnan(t2star_maps), np.isinf(t2star_maps))] = 0
-    s0_I_maps[np.logical_or(np.isnan(s0_I_maps), np.isinf(s0_I_maps))] = 0
-    t2_maps[np.logical_or(np.isnan(t2_maps), np.isinf(t2_maps))] = 0
-    delta_maps[np.logical_or(np.isnan(delta_maps), np.isinf(delta_maps))] = 0
+    # t2star_maps[np.logical_or(np.isnan(t2star_maps), np.isinf(t2star_maps))] = 0
+    # s0_I_maps[np.logical_or(np.isnan(s0_I_maps), np.isinf(s0_I_maps))] = 0
+    # t2_maps[np.logical_or(np.isnan(t2_maps), np.isinf(t2_maps))] = 0
+    # delta_maps[np.logical_or(np.isnan(delta_maps), np.isinf(delta_maps))] = 0
 
     s0_II_maps = (1 / delta_maps) * s0_I_maps
-    s0_II_maps[np.logical_or(np.isnan(s0_II_maps), np.isinf(s0_II_maps))] = 0
+    # s0_II_maps[~np.isfinite(s0_II_maps)] = 0
 
     # ### optimally combine data ###
     # optcom_t2star, optcom_t2 = combine.make_optcom_sage(
@@ -251,14 +253,8 @@ def sage_workflow(
 
     io_generator.save_file(s0_I_maps, "s0_I img")
     io_generator.save_file(s0_II_maps, "s0_II img")
-    io_generator.save_file(
-        utils.millisec2sec(t2star_maps),
-        "t2star img",
-    )
-    io_generator.save_file(
-        utils.millisec2sec(t2_maps),
-        "t2 img",
-    )
+    io_generator.save_file(t2star_maps, "t2star img")
+    io_generator.save_file(t2_maps, "t2 img")
     # io_generator.save_file(utils.unmask(optcom_t2star, mask), "combined T2* img")
     # io_generator.save_file(utils.unmask(optcom_t2, mask), "combined T2 img")
 
