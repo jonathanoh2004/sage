@@ -478,6 +478,12 @@ def fit_decay_ts(data, tes, mask, adaptive_mask, fittype):
 
 
 def fit_decay_sage(data, tes, mask, fittype, fitmode, report=True):
+    """
+    in a linear fitting, each voxel, time point is fitted separately
+    the result of a linear fitting are arrays of dimension (S x T)
+    in a nonlinear fitting, each voxel is fitted over all time points
+    the result of a nonlinear fitting are arrays of dimension (S)
+    """
     if data.ndim != 3:
         raise ValueError("Data should be of dimension (S x E x T)")
     if data.shape[1] != len(tes):
@@ -491,14 +497,12 @@ def fit_decay_sage(data, tes, mask, fittype, fitmode, report=True):
         raise ValueError("Unknown fittype option: {}".format(fittype))
     if mask.shape != (data.shape[0], 1):
         raise ValueError("Shape of mask must match (data.shape[0], 1)")
-    
+
     fit_func = fit_loglinear_sage if fittype == "loglin" else fit_nonlinear_sage
     # result_dim = (data.shape[0], 1) if fitmode == "all" else (data.shape[0], data.shape[2])
 
     # if fitmode == "all":
-    t2star_maps, s0_I_maps, t2_maps, delta_maps = fit_func(
-        data, tes, mask, report=report
-    )
+    t2star_maps, s0_I_maps, t2_maps, delta_maps = fit_func(data, tes, mask, report=report)
     # else:
     #     t2star_maps = np.zeros(result_dim)
     #     s0_I_maps = np.zeros(result_dim)
@@ -515,14 +519,14 @@ def fit_decay_sage(data, tes, mask, fittype, fitmode, report=True):
 
 
 def fit_loglinear_sage(data_cat, echo_times, mask, report=True):
-    '''
+    """
     This function fits over each (voxel, time) point independently
-    '''
+    """
     n_samps, n_echos, n_vols = data_cat.shape
     echo_times = np.array(echo_times).reshape(n_echos, 1)
     tese = echo_times[-1, 0]
 
-    Y = data_cat.swapaxes(1,2).reshape((n_samps * n_vols, -1)).T
+    Y = data_cat.swapaxes(1, 2).reshape((n_samps * n_vols, -1)).T
     Y = np.log(Y) * (np.repeat(mask.astype(bool), axis=0, repeats=n_vols).T)
 
     # x_r2star = np.replace(echo_times.copy()  * -1)
@@ -537,8 +541,18 @@ def fit_loglinear_sage(data_cat, echo_times, mask, report=True):
 
     x_s0_I = np.ones(n_echos)
     x_delta = np.array([0, 0, -1, -1, -1])
-    x_r2star = np.array([-1 * echo_times[0, 0], -1 * echo_times[1, 0], echo_times[2, 0] - tese, echo_times[3, 0] - tese, 0])
-    x_r2 = np.array([0, 0, tese - (2 * echo_times[2, 0]), tese - (2 * echo_times[3, 0]), -1 * tese])
+    x_r2star = np.array(
+        [
+            -1 * echo_times[0, 0],
+            -1 * echo_times[1, 0],
+            echo_times[2, 0] - tese,
+            echo_times[3, 0] - tese,
+            0,
+        ]
+    )
+    x_r2 = np.array(
+        [0, 0, tese - (2 * echo_times[2, 0]), tese - (2 * echo_times[3, 0]), -1 * tese]
+    )
 
     X = np.column_stack([x_s0_I, x_delta, x_r2star, x_r2])
     # X = np.repeat(x, n_vols, axis=0)
@@ -560,14 +574,13 @@ def fit_loglinear_sage(data_cat, echo_times, mask, report=True):
     t2star_map = t2star_map.reshape(n_samps, n_vols)
     t2_map = t2_map.reshape(n_samps, n_vols)
 
-
     return t2star_map, s0_I_map, t2_map, delta_map
 
 
 def fit_nonlinear_sage(data_cat, echo_times, mask, report=True):
-    '''
+    """
     This function fits over each voxel independently (all time points)
-    '''
+    """
     n_samp, n_echos, n_vols = data_cat.shape
     tese = echo_times[-1]
 
@@ -576,52 +589,33 @@ def fit_nonlinear_sage(data_cat, echo_times, mask, report=True):
     )
 
     t2star_map = np.mean(t2star_map, axis=1)
-    s0_I_map = np.mean(s0_I_map, axis=0)
-    t2_map = np.mean(t2_map, axis=0)
-    delta_map = np.mean(delta_map, axis=0)
+    s0_I_map = np.mean(s0_I_map, axis=1)
+    t2_map = np.mean(t2_map, axis=1)
+    delta_map = np.mean(delta_map, axis=1)
 
-    Y = data_cat.reshape(n_samp, -1).T
+    Y = data_cat.reshape(n_samp, -1)
     X = np.repeat(echo_times, n_vols)
-    def f():
-        pass
 
-    # Construct Y
-    # Construct X
+    def model(X, t2star, s0_I, t2, delta):
+        r2star = 1 / t2star
+        r2 = 1 / t2
 
-    # iterable = [
-    #     (
-    #         f,
-    #         X,
-    #         Y,
-    #         t2star_map,
-    #         s0_I_map,
-    #         lambda tes, s0_I, t2star: s0_I * np.exp(-tes / t2star),
-    #         t2star_map,
-    #         s0_I_map,
-    #     ),
-    #     (
-    #         data_2d_t2,
-    #         echo_times_idx_t2,
-    #         t2_map,
-    #         s0_II_map,
-    #         lambda tes, s0_II, t2: s0_II * np.exp(-tes / t2),
-    #         t2_map,
-    #         s0_II_map,
-    #     ),
-    # ]
+        return (
+            np.exp(-1 * tese * (r2star - r2))
+            * np.exp(-1 * echo_times * ((2 * r2) - r2star))
+            * s0_I
+            / delta
+        )
 
-    # perform a monoexponential fit of echo times against MR signal
-    # using loglin estimates as initial starting points for fit
-    # for data_2d, voxel_idx, t_map, s_map, monoexp_func, t_map_result, s_map_result in iterable:
     fail_count = 0
-    for i_v in range(len(Y)):
+    for i_v in range(Y.shape[0]):
         try:
             popt, _ = scipy.optimize.curve_fit(
-                f,
+                model,
                 X,
-                Y[:, i_v],
+                Y[i_v, :],
                 p0=(t2star_map[i_v], s0_I_map[i_v], t2_map[i_v], delta_map[i_v]),
-                bounds=((np.min(Y[:, i_v]), 0), (np.inf, np.inf)),
+                bounds=((np.min(Y[i_v, :]), 0), (np.inf, np.inf)),
             )
             t2star_map[i_v] = popt[0]
             s0_I_map[i_v] = popt[1]
@@ -632,7 +626,7 @@ def fit_nonlinear_sage(data_cat, echo_times, mask, report=True):
             fail_count += 1
 
         if fail_count:
-            fail_percent = 100 * fail_count / len(i_v)
+            fail_percent = 100 * fail_count / Y.shape[0]
             print("fail_percent: ", fail_percent)
 
     return t2star_map, s0_I_map, t2_map, delta_map
