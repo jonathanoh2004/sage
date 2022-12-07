@@ -492,29 +492,32 @@ def fit_decay_sage(data, tes, mask, fittype, fitmode, report=True):
     if mask.shape != (data.shape[0], 1):
         raise ValueError("Shape of mask must match (data.shape[0], 1)")
     
-    fit_func = fit_loglinear_sage if fittype == "loglin" else fit_monoexponential_sage
-    result_dim = (data.shape[0], 1) if fitmode == "all" else (data.shape[0], data.shape[2])
+    fit_func = fit_loglinear_sage if fittype == "loglin" else fit_nonlinear_sage
+    # result_dim = (data.shape[0], 1) if fitmode == "all" else (data.shape[0], data.shape[2])
 
-    if fitmode == "all":
-        t2star_maps, s0_I_maps, t2_maps, delta_maps = fit_func(
-            data, tes, mask, report=report
-        )
-    else:
-        t2star_maps = np.zeros(result_dim)
-        s0_I_maps = np.zeros(result_dim)
-        t2_maps = np.zeros(result_dim)
-        s0_II_maps = np.zeros(result_dim)
-        delta_maps = np.zeros(result_dim)
+    # if fitmode == "all":
+    t2star_maps, s0_I_maps, t2_maps, delta_maps = fit_func(
+        data, tes, mask, report=report
+    )
+    # else:
+    #     t2star_maps = np.zeros(result_dim)
+    #     s0_I_maps = np.zeros(result_dim)
+    #     t2_maps = np.zeros(result_dim)
+    #     s0_II_maps = np.zeros(result_dim)
+    #     delta_maps = np.zeros(result_dim)
 
-        for t in range(data.shape[2]):
-            t2star_maps[:, t], s0_I_maps[:, t], t2_maps[:, t], delta_maps[:, t] = fit_func(
-                np.expand_dims(data[:, :, t], axis=2), tes, mask, report=report
-            )
+    #     for t in range(data.shape[2]):
+    #         t2star_maps[:, t], s0_I_maps[:, t], t2_maps[:, t], delta_maps[:, t] = fit_func(
+    #             np.expand_dims(data[:, :, t], axis=2), tes, mask, report=report
+    #         )
 
     return t2star_maps, s0_I_maps, t2_maps, delta_maps
 
 
 def fit_loglinear_sage(data_cat, echo_times, mask, report=True):
+    '''
+    This function fits over each (voxel, time) point independently
+    '''
     n_samps, n_echos, n_vols = data_cat.shape
     echo_times = np.array(echo_times).reshape(n_echos, 1)
     tese = echo_times[-1, 0]
@@ -561,86 +564,98 @@ def fit_loglinear_sage(data_cat, echo_times, mask, report=True):
     return t2star_map, s0_I_map, t2_map, delta_map
 
 
-def fit_monoexponential_sage(data_cat, echo_times, mask, report=True):
-    n_samp, _, n_vols = data_cat.shape
+def fit_nonlinear_sage(data_cat, echo_times, mask, report=True):
+    '''
+    This function fits over each voxel independently (all time points)
+    '''
+    n_samp, n_echos, n_vols = data_cat.shape
     tese = echo_times[-1]
 
-    t2star_map, s0_I_map, t2_map, s0_II_map = fit_loglinear_sage(
+    t2star_map, s0_I_map, t2_map, delta_map = fit_loglinear_sage(
         data_cat, echo_times, mask, report=False
     )
 
-    echo_times_idx_t2star = echo_times[echo_times > tese / 2]
-    echo_times_idx_t2 = echo_times[echo_times < tese]
+    t2star_map = np.mean(t2star_map, axis=1)
+    s0_I_map = np.mean(s0_I_map, axis=0)
+    t2_map = np.mean(t2_map, axis=0)
+    delta_map = np.mean(delta_map, axis=0)
 
-    data_2d_t2star = data_cat[:, echo_times_idx_t2star, :].reshape(n_samp, -1).T
-    data_2d_t2 = data_cat[:, echo_times_idx_t2, :].reshape(n_samp, -1).T
-    echo_times_1d = np.repeat(echo_times, n_vols)
+    Y = data_cat.reshape(n_samp, -1).T
+    X = np.repeat(echo_times, n_vols)
+    def f():
+        pass
 
-    iterable = [
-        (
-            data_2d_t2star,
-            echo_times_idx_t2star,
-            t2star_map,
-            s0_I_map,
-            lambda tes, s0_I, t2star: s0_I * np.exp(-tes / t2star),
-            t2star_map,
-            s0_I_map,
-        ),
-        (
-            data_2d_t2,
-            echo_times_idx_t2,
-            t2_map,
-            s0_II_map,
-            lambda tes, s0_II, t2: s0_II * np.exp(-tes / t2),
-            t2_map,
-            s0_II_map,
-        ),
-    ]
+    # Construct Y
+    # Construct X
+
+    # iterable = [
+    #     (
+    #         f,
+    #         X,
+    #         Y,
+    #         t2star_map,
+    #         s0_I_map,
+    #         lambda tes, s0_I, t2star: s0_I * np.exp(-tes / t2star),
+    #         t2star_map,
+    #         s0_I_map,
+    #     ),
+    #     (
+    #         data_2d_t2,
+    #         echo_times_idx_t2,
+    #         t2_map,
+    #         s0_II_map,
+    #         lambda tes, s0_II, t2: s0_II * np.exp(-tes / t2),
+    #         t2_map,
+    #         s0_II_map,
+    #     ),
+    # ]
 
     # perform a monoexponential fit of echo times against MR signal
     # using loglin estimates as initial starting points for fit
-    for data_2d, voxel_idx, t_map, s_map, monoexp_func, t_map_result, s_map_result in iterable:
-        fail_count = 0
-        for voxel in voxel_idx:
-            try:
-                popt, _ = scipy.optimize.curve_fit(
-                    monoexp_func,
-                    echo_times_1d,
-                    data_2d[:, voxel],
-                    p0=(s_map[voxel], t_map[voxel]),
-                    bounds=((np.min(data_2d[:, voxel]), 0), (np.inf, np.inf)),
-                )
-                s_map_result[voxel] = popt[0]
-                t_map_result[voxel] = popt[1]
-            except (RuntimeError, ValueError):
-                # If curve_fit fails to converge, fall back to loglinear estimate
-                fail_count += 1
+    # for data_2d, voxel_idx, t_map, s_map, monoexp_func, t_map_result, s_map_result in iterable:
+    fail_count = 0
+    for i_v in range(len(Y)):
+        try:
+            popt, _ = scipy.optimize.curve_fit(
+                f,
+                X,
+                Y[:, i_v],
+                p0=(t2star_map[i_v], s0_I_map[i_v], t2_map[i_v], delta_map[i_v]),
+                bounds=((np.min(Y[:, i_v]), 0), (np.inf, np.inf)),
+            )
+            t2star_map[i_v] = popt[0]
+            s0_I_map[i_v] = popt[1]
+            t2_map[i_v] = popt[2]
+            delta_map[i_v] = popt[3]
+        except (RuntimeError, ValueError):
+            # If curve_fit fails to converge, fall back to loglinear estimate
+            fail_count += 1
 
         if fail_count:
-            fail_percent = 100 * fail_count / len(voxel_idx)
+            fail_percent = 100 * fail_count / len(i_v)
             print("fail_percent: ", fail_percent)
 
-    return t2star_map, s0_I_map, t2_map, s0_II_map
+    return t2star_map, s0_I_map, t2_map, delta_map
 
 
-def fit_decay_ts_sage(data, tes, mask, fittype):
-    n_samples, _, n_vols = data.shape
-    tes = np.array(tes)
+# def fit_decay_ts_sage(data, tes, mask, fittype):
+#     n_samples, _, n_vols = data.shape
+#     tes = np.array(tes)
 
-    t2star_map_vols = np.zeros([n_samples, n_vols])
-    s0_I_map_vols = np.zeros([n_samples, n_vols])
-    t2_map_vols = np.zeros([n_samples, n_vols])
-    s0_II_map_vols = np.zeros([n_samples, n_vols])
+#     t2star_map_vols = np.zeros([n_samples, n_vols])
+#     s0_I_map_vols = np.zeros([n_samples, n_vols])
+#     t2_map_vols = np.zeros([n_samples, n_vols])
+#     s0_II_map_vols = np.zeros([n_samples, n_vols])
 
-    report = True
-    for vol in range(n_vols):
-        t2star_map, s0_I_map, t2_map, s0_II_map = fit_decay_sage(
-            data[:, :, vol][:, :, None], tes, fittype, mask, report=report
-        )
-        t2star_map_vols[:, vol] = t2star_map
-        s0_I_map_vols[:, vol] = s0_I_map
-        t2_map_vols[:, vol] = t2_map
-        s0_II_map_vols[:, vol] = s0_II_map
-        report = False
+#     report = True
+#     for vol in range(n_vols):
+#         t2star_map, s0_I_map, t2_map, s0_II_map = fit_decay_sage(
+#             data[:, :, vol][:, :, None], tes, fittype, mask, report=report
+#         )
+#         t2star_map_vols[:, vol] = t2star_map
+#         s0_I_map_vols[:, vol] = s0_I_map
+#         t2_map_vols[:, vol] = t2_map
+#         s0_II_map_vols[:, vol] = s0_II_map
+#         report = False
 
-    return t2star_map_vols, s0_I_map_vols, t2_map_vols, s0_II_map_vols
+#     return t2star_map_vols, s0_I_map_vols, t2_map_vols, s0_II_map_vols
