@@ -101,11 +101,11 @@ def _get_parser():
         "--fittype",
         dest="fittype",
         action="store",
-        choices=["loglin", "curvefit"],
+        choices=["loglin", "nonlin"],
         help="Desired Fitting Method"
         '"loglin" means that a linear model is fit'
         " to the log of the data, default"
-        '"curvefit" means that a more computationally'
+        '"nonlin" means that a more computationally'
         "demanding monoexponential model is fit"
         "to the raw data",
         default="loglin",
@@ -208,13 +208,11 @@ def sage_workflow(
     else:
         mask = nilearn.image.load_img(mask).get_fdata().reshape(catd.shape[0], 1)
 
-    fitmode = "all"
-
     ### Fit Parameters ###
     # each result is in format (t2star_map, s0_I_map, t2_map, s0_II_map)
     # where there is one result if fitmode is "all" and otherwise
     # there is one result for each time point
-    t2star_maps, s0_I_maps, t2_maps, delta_maps = decay.fit_decay_sage(catd, tes, mask, fittype, fitmode)
+    t2star_maps, s0_I_maps, t2_maps, delta_maps = decay.fit_decay_sage(catd, tes, mask, fittype)
 
     # t2star_maps[np.logical_or(np.isnan(t2star_maps), np.isinf(t2star_maps))] = 0
     # s0_I_maps[np.logical_or(np.isnan(s0_I_maps), np.isinf(s0_I_maps))] = 0
