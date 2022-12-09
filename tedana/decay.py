@@ -477,7 +477,7 @@ def fit_decay_ts(data, tes, mask, adaptive_mask, fittype):
 ######################################################################################
 
 
-def fit_decay_sage(data, tes, mask, fittype, fitmode, report=True):
+def fit_decay_sage(data, tes, mask, fittype, report=True):
     """
     in a linear fitting, each voxel, time point is fitted separately
     the result of a linear fitting are arrays of dimension (S x T)
@@ -493,7 +493,7 @@ def fit_decay_sage(data, tes, mask, fittype, fitmode, report=True):
         )
     if len(tes) != 5:
         raise ValueError("SAGE requires 5 echos for computing T2*, T2, S0_I, and S0_II maps")
-    if fittype not in ["loglin", "curvefit"]:
+    if fittype not in ["loglin", "nonlin"]:
         raise ValueError("Unknown fittype option: {}".format(fittype))
     if mask.shape != (data.shape[0], 1):
         raise ValueError("Shape of mask must match (data.shape[0], 1)")
@@ -584,17 +584,27 @@ def fit_nonlinear_sage(data_cat, echo_times, mask, report=True):
     n_samp, n_echos, n_vols = data_cat.shape
     tese = echo_times[-1]
 
-    t2star_map, s0_I_map, t2_map, delta_map = fit_loglinear_sage(
-        data_cat, echo_times, mask, report=False
-    )
+    # t2star_map, s0_I_map, t2_map, delta_map = fit_loglinear_sage(
+    #     data_cat, echo_times, mask, report=False
+    # )
 
-    t2star_map = np.mean(t2star_map, axis=1)
-    s0_I_map = np.mean(s0_I_map, axis=1)
-    t2_map = np.mean(t2_map, axis=1)
-    delta_map = np.mean(delta_map, axis=1)
+    # t2star_map[~np.isfinite(t2star_map)] = 0
+    # t2_map[~np.isfinite(t2_map)] = 0
+    # s0_I_map[~np.isfinite(s0_I_map)] = 0
+    # delta_map[~np.isfinite(delta_map)] = 0
 
-    Y = data_cat.reshape(n_samp, -1)
+    # t2star_map = np.mean(t2star_map, axis=1)
+    # s0_I_map = np.mean(s0_I_map, axis=1)
+    # t2_map = np.mean(t2_map, axis=1)
+    # delta_map = np.mean(delta_map, axis=1)
+
+    Y = data_cat.reshape(n_samp, -1) * (np.repeat(mask.astype(bool), axis=1, repeats=(n_echos * n_vols)))
     X = np.repeat(echo_times, n_vols)
+
+    res_t2star_map = np.zeros((n_samp))
+    res_s0_I_map = np.zeros((n_samp))
+    res_t2_map = np.zeros((n_samp))
+    res_delta_map = np.zeros((n_samp))
 
     def model(X, t2star, s0_I, t2, delta):
         r2star = 1 / t2star
@@ -602,7 +612,7 @@ def fit_nonlinear_sage(data_cat, echo_times, mask, report=True):
 
         return (
             np.exp(-1 * tese * (r2star - r2))
-            * np.exp(-1 * echo_times * ((2 * r2) - r2star))
+            * np.exp(-1 * X * ((2 * r2) - r2star))
             * s0_I
             / delta
         )
@@ -614,22 +624,21 @@ def fit_nonlinear_sage(data_cat, echo_times, mask, report=True):
                 model,
                 X,
                 Y[i_v, :],
-                p0=(t2star_map[i_v], s0_I_map[i_v], t2_map[i_v], delta_map[i_v]),
-                bounds=((np.min(Y[i_v, :]), 0), (np.inf, np.inf)),
+                # p0=(t2star_map[i_v], s0_I_map[i_v], t2_map[i_v], delta_map[i_v]),
+                bounds=((np.min(Y[i_v, :]), 0, np.min(Y[i_v, :]), 0), (np.inf, np.inf, np.inf, np.inf)),
             )
-            t2star_map[i_v] = popt[0]
-            s0_I_map[i_v] = popt[1]
-            t2_map[i_v] = popt[2]
-            delta_map[i_v] = popt[3]
+            res_t2star_map[i_v] = popt[0]
+            res_s0_I_map[i_v] = popt[1]
+            res_t2_map[i_v] = popt[2]
+            res_delta_map[i_v] = popt[3]
         except (RuntimeError, ValueError):
-            # If curve_fit fails to converge, fall back to loglinear estimate
             fail_count += 1
 
-        if fail_count:
-            fail_percent = 100 * fail_count / Y.shape[0]
-            print("fail_percent: ", fail_percent)
+    if fail_count:
+        fail_percent = 100 * fail_count / Y.shape[0]
+        print("fail_percent: ", fail_percent)
 
-    return t2star_map, s0_I_map, t2_map, delta_map
+    return res_t2star_map, res_s0_I_map, res_t2_map, res_delta_map
 
 
 # def fit_decay_ts_sage(data, tes, mask, fittype):
