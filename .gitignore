@@ -8,6 +8,8 @@ Notebooks/
 figures/
 output_archive/
 
+tedana/tests/data_sage/
+
 .DS_Store
 docs/generated/
 .pytest_cache/
