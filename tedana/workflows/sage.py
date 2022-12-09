@@ -5,14 +5,12 @@ and combine data across TEs according to (cite paper)
 
 
 import os
-import sys
 from threadpoolctl import threadpool_limits
 import argparse
 import json
 import numpy as np
 import pandas as pd
 import nilearn.image
-from scipy import stats
 from tedana import (
     __version__,
     combine,
@@ -29,212 +27,92 @@ from tedana.workflows.parser_utils import is_valid_file
 from tedana.stats import computefeats2
 
 
-def _get_parser():
-    """
-    Parses command line inputs for sage tedana
-
-    Returns
-    -------
-    parser.parse_args() : argparse dict
-    """
-    parser = argparse.ArgumentParser()
-    # Argument parser follow template provided by RalphyZ
-    # https://stackoverflow.com/a/43456577
-    optional = parser._action_groups.pop()
-    required = parser.add_argument_group("Required Arguments")
-    required.add_argument(
-        "-d",
-        dest="data",
-        nargs="+",
-        metavar="FILE",
-        type=lambda x: is_valid_file(parser, x),
-        help=(
-            "Multi-echo dataset for analysis. May be a "
-            "single file with spatially concatenated data "
-            "or a set of echo-specific files, in the same "
-            "order as the TEs are listed in the -e "
-            "argument."
-        ),
-        required=True,
-    )
-    required.add_argument(
-        "-e",
-        dest="tes",
-        nargs="+",
-        metavar="TE",
-        type=float,
-        help="Echo times (in ms). E.g., 15.0 39.0 63.0",
-        required=True,
-    )
-    optional.add_argument(
-        "--out-dir",
-        dest="out_dir",
-        type=str,
-        metavar="PATH",
-        help="Output directory.",
-        default=None,
-    )
-    optional.add_argument(
-        "--mask",
-        dest="mask",
-        metavar="FILE",
-        type=lambda x: is_valid_file(parser, x),
-        help=(
-            "Binary mask of voxels to include in TE "
-            "Dependent ANAlysis. Must be in the same "
-            "space as `data`."
-        ),
-        default=None,
-    )
-    optional.add_argument(
-        "--prefix", dest="prefix", type=str, help="Prefix for filenames generated.", default=""
-    )
-    optional.add_argument(
-        "--convention",
-        dest="convention",
-        action="store",
-        choices=["orig", "bids"],
-        help=("Filenaming convention. bids will use the latest BIDS derivatives version."),
-        default="bids",
-    )
-    optional.add_argument(
-        "--fittype",
-        dest="fittype",
-        action="store",
-        choices=["loglin", "nonlin"],
-        help="Desired Fitting Method"
-        '"loglin" means that a linear model is fit'
-        " to the log of the data, default"
-        '"nonlin" means that a more computationally'
-        "demanding monoexponential model is fit"
-        "to the raw data",
-        default="loglin",
-    )
-    optional.add_argument(
-        "--fitmode",
-        dest="fitmode",
-        action="store",
-        choices=["all", "ts"],
-        help=(
-            "Monoexponential model fitting scheme. "
-            '"all" means that the model is fit, per voxel, '
-            "across all timepoints. "
-            '"ts" means that the model is fit, per voxel '
-            "and per timepoint."
-        ),
-        default="ts",
-    )
-    optional.add_argument(
-        "--combmode",
-        dest="combmode",
-        action="store",
-        choices=["t2s", "paid"],
-        help=("Combination scheme for TEs: t2s (Posse 1999, default), paid (Poser)"),
-        default="t2s",
-    )
-    optional.add_argument(
-        "--n-threads",
-        dest="n_threads",
-        type=int,
-        action="store",
-        help=(
-            "Number of threads to use. Used by "
-            "threadpoolctl to set the parameter outside "
-            "of the workflow function. Higher numbers of "
-            "threads tend to slow down performance on "
-            "typical datasets. Default is 1."
-        ),
-        default=1,
-    )
-    optional.add_argument(
-        "--debug", dest="debug", help=argparse.SUPPRESS, action="store_true", default=False
-    )
-    optional.add_argument(
-        "--quiet", dest="quiet", help=argparse.SUPPRESS, action="store_true", default=False
-    )
-    parser._action_groups.append(optional)
-    return parser
-
-
 def sage_workflow(
     data,
     tes,
-    out_dir="outputs",
+    out_dir,
     mask=None,
     convention="bids",
     prefix="",
     fittype="loglin",
-    fitmode="ts",
     combmode="t2s",
+    gscontrol=None,
     tedpca="aic",
+    tedort=False,
     fixed_seed=42,
     maxit=500,
     maxrestart=10,
-    tedort=False,
-    gscontrol=None,
     no_reports=False,
     png_cmap="coolwarm",
-    verbose=False,
     low_mem=False,
+    verbose=False,
     debug=False,
     quiet=False,
     mixm=None,
     ctab=None,
     manacc=None,
 ):
-    # ensure tes are in appropriate format
+    ########################################################################################
+    ####################### RETRIEVE AND PREP DATA #########################################
+    ########################################################################################
+
     tes = np.array([float(te) for te in tes]) / 1000
 
-    # Coerce gscontrol to list
     if not isinstance(gscontrol, list):
         gscontrol = [gscontrol]
 
-    # TODO: change naming of data to datafiles or similar
-    # coerce data to samples x echos x time array
     if isinstance(data, str):
         data = [data]
 
     catd, ref_img = io.load_data(data, n_echos=len(tes))
 
-    ########################################################################################
-    ####################### MAPS AND COMBINATIONS ##########################################
-    ########################################################################################
-
     n_samps, n_echos, n_vols = catd.shape
 
-    if mask is None:
-        # Note: this mask is used in this section as well as in the denoising section
-        mask = np.any(catd != 0, axis=(1, 2))
+    # TODO: see how different masks work in the denoising section
+    if mask is not None:
+        # load provided mask
+        mask = nilearn.image.load_img(mask).get_fdata().reshape(n_samps, 1)
     else:
-        mask = nilearn.image.load_img(mask).get_fdata().reshape(catd.shape[0], 1)
+        # include all voxels with at least one nonzero value
+        mask = np.any(catd != 0, axis=(1, 2)).reshape(n_samps, 1)
 
-    ### Fit Parameters ###
-    # each result is in format (t2star_map, s0_I_map, t2_map, s0_II_map)
-    # where there is one result if fitmode is "all" and otherwise
-    # there is one result for each time point
+    ########################################################################################
+    ####################### COMPUTE S0, T2*, T2 MAPS #######################################
+    ########################################################################################
+
+    # TODO: decide on which data cleaning procedures to use for computing maps
+    # TODO: validate nonlinear decay fitting
+
+    # If fittype="loglin", each output map is over samples and volumes (S x T)
+    # Else if fittype="nonlin", each output map is over samples (S)
     t2star_maps, s0_I_maps, t2_maps, delta_maps = decay.fit_decay_sage(catd, tes, mask, fittype)
-
-    # t2star_maps[np.logical_or(np.isnan(t2star_maps), np.isinf(t2star_maps))] = 0
-    # s0_I_maps[np.logical_or(np.isnan(s0_I_maps), np.isinf(s0_I_maps))] = 0
-    # t2_maps[np.logical_or(np.isnan(t2_maps), np.isinf(t2_maps))] = 0
-    # delta_maps[np.logical_or(np.isnan(delta_maps), np.isinf(delta_maps))] = 0
 
     s0_II_maps = (1 / delta_maps) * s0_I_maps
     # s0_II_maps[~np.isfinite(s0_II_maps)] = 0
 
-    # ### optimally combine data ###
+    ########################################################################################
+    ####################### COMPUTE OPTIMAL COMBINATIONS ###################################
+    ########################################################################################
+
+    # TODO: decide whether to average over volumes here in the event of loglin fitting
+    # TODO: check if changes are needed to optcom based on assumed model (i.e. 4 parameter fit with delta)
+
     # optcom_t2star, optcom_t2 = combine.make_optcom_sage(
-    #     catd, tes, t2star_map, s0_I_map, t2_map, s0_II_map, mask
+    #     catd, tes, t2star_maps, s0_I_maps, t2_maps, s0_II_maps, mask
     # )
 
-    # # clean up numerical errors
-    # for arr in (optcom_t2star, optcom_t2):
-    #     np.nan_to_num(arr, copy=False)
+    # TODO: decide on data cleaning steps to use for computing optimal combinations
+    # np.nan_to_num(optcom_t2star, copy=False)
+    # np.nan_to_num(optcom_t2, copy=False)
 
     # s0_I_map[s0_I_map < 0] = 0
     # s0_II_map[s0_II_map < 0] = 0
     # t2star_map[t2star_map < 0] = 0
     # t2_map[t2_map < 0] = 0
+
+    ########################################################################################
+    ####################### WRITE MAPS AND OPTCOMS OUTPUTS #################################
+    ########################################################################################
 
     out_dir = os.path.abspath("outputs")
     if not os.path.isdir(out_dir):
@@ -253,8 +131,6 @@ def sage_workflow(
     io_generator.save_file(s0_II_maps, "s0_II img")
     io_generator.save_file(t2star_maps, "t2star img")
     io_generator.save_file(t2_maps, "t2 img")
-    # io_generator.save_file(utils.unmask(optcom_t2star, mask), "combined T2* img")
-    # io_generator.save_file(utils.unmask(optcom_t2, mask), "combined T2 img")
 
     # ########################################################################################
     # ####################### DENOISING ######################################################
@@ -453,6 +329,108 @@ def sage_workflow(
     #         )
 
     # utils.teardown_loggers()
+
+
+def _get_parser():
+    parser = argparse.ArgumentParser(prog="SAGEtedana")
+    required = parser.add_argument_group("Required Arguments")
+    required.add_argument(
+        "-d",
+        dest="data",
+        nargs="+",
+        metavar="FILE",
+        type=lambda x: is_valid_file(parser, x),
+        help=(
+            "Multi-echo dataset for analysis. May be a "
+            "single file with spatially concatenated data "
+            "or a set of echo-specific files, in the same "
+            "order as the TEs are listed in the -e "
+            "argument."
+        ),
+        required=True,
+    )
+    required.add_argument(
+        "-e",
+        dest="tes",
+        nargs="+",
+        metavar="TE",
+        type=float,
+        help="Echo times (in ms). E.g., 15.0 39.0 63.0",
+        required=True,
+    )
+    parser.add_argument(
+        "--mask",
+        dest="mask",
+        metavar="FILE",
+        type=lambda x: is_valid_file(parser, x),
+        help=(
+            "Binary mask of voxels to include in TE "
+            "Dependent Analysis. Must be in the same "
+            "space as `data`."
+        ),
+        default=None,
+    )
+    parser.add_argument(
+        "--fittype",
+        dest="fittype",
+        action="store",
+        choices=["loglin", "nonlin"],
+        help="Desired Fitting Method"
+        '"loglin" means that a linear model is fit'
+        " to the log of the data (default)"
+        '"nonlin" means that a more computationally'
+        "demanding monoexponential model is fit"
+        "to the raw data",
+        default="loglin",
+    )
+    parser.add_argument(
+        "--combmode",
+        dest="combmode",
+        action="store",
+        choices=["t2s", "paid"],
+        help=("Combination scheme for TEs: t2s (Posse 1999, default), paid (Poser)"),
+        default="t2s",
+    )
+    parser.add_argument(
+        "--out-dir",
+        dest="out_dir",
+        type=str,
+        metavar="PATH",
+        help="Output directory.",
+        default="outputs",
+    )
+    parser.add_argument(
+        "--prefix", dest="prefix", type=str, help="Prefix for filenames generated.", default=""
+    )
+    parser.add_argument(
+        "--convention",
+        dest="convention",
+        action="store",
+        choices=["orig", "bids"],
+        help=("Filenaming convention. bids will use the latest BIDS derivatives version."),
+        default="bids",
+    )
+    parser.add_argument(
+        "--n-threads",
+        dest="n_threads",
+        type=int,
+        action="store",
+        help=(
+            "Number of threads to use. Used by "
+            "threadpoolctl to set the parameter outside "
+            "of the workflow function. Higher numbers of "
+            "threads tend to slow down performance on "
+            "typical datasets. Default is 1."
+        ),
+        default=1,
+    )
+    parser.add_argument(
+        "--debug", dest="debug", help=argparse.SUPPRESS, action="store_true", default=False
+    )
+    parser.add_argument(
+        "--quiet", dest="quiet", help=argparse.SUPPRESS, action="store_true", default=False
+    )
+    return parser
 
 
 if __name__ == "__main__":
