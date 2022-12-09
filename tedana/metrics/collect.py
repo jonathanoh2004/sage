@@ -5,7 +5,7 @@ import os.path as op
 import numpy as np
 import pandas as pd
 
-from tedana import imageio, utils
+from tedana import io, utils
 from tedana.stats import getfbounds
 
 from . import dependence
@@ -58,7 +58,7 @@ def generate_metrics(
     """
     # Load metric dependency tree from json file
     dependency_config = op.join(utils.get_resource_path(), "config", "metrics.json")
-    dependency_config = imageio.load_json(dependency_config)
+    dependency_config = io.load_json(dependency_config)
 
     if metrics is None:
         metrics = ["map weight"]
@@ -111,7 +111,7 @@ def generate_metrics(
     n_components = mixing.shape[1]
     comptable = pd.DataFrame(index=np.arange(n_components, dtype=int))
     comptable["Component"] = [
-        imageio.add_decomp_prefix(comp, prefix=label, max_value=comptable.shape[0])
+        io.add_decomp_prefix(comp, prefix=label, max_value=comptable.shape[0])
         for comp in comptable.index.values
     ]
 

@@ -17,7 +17,7 @@ from tedana import (
     __version__,
     combine,
     decay,
-    imageio,
+    io,
     utils,
     gscontrol as gsc,
     decomposition,
@@ -194,7 +194,7 @@ def sage_workflow(
     if isinstance(data, str):
         data = [data]
 
-    catd, ref_img = imageio.load_data(data, n_echos=len(tes))
+    catd, ref_img = io.load_data(data, n_echos=len(tes))
 
     ########################################################################################
     ####################### MAPS AND COMBINATIONS ##########################################
@@ -214,7 +214,9 @@ def sage_workflow(
     # each result is in format (t2star_map, s0_I_map, t2_map, s0_II_map)
     # where there is one result if fitmode is "all" and otherwise
     # there is one result for each time point
-    t2star_maps, s0_I_maps, t2_maps, delta_maps = decay.fit_decay_sage(catd, tes, mask, fittype, fitmode)
+    t2star_maps, s0_I_maps, t2_maps, delta_maps = decay.fit_decay_sage(
+        catd, tes, mask, fittype, fitmode
+    )
 
     # t2star_maps[np.logical_or(np.isnan(t2star_maps), np.isinf(t2star_maps))] = 0
     # s0_I_maps[np.logical_or(np.isnan(s0_I_maps), np.isinf(s0_I_maps))] = 0
@@ -242,7 +244,7 @@ def sage_workflow(
     if not os.path.isdir(out_dir):
         os.mkdir(out_dir)
 
-    io_generator = imageio.OutputGenerator(
+    io_generator = io.OutputGenerator(
         ref_img,
         convention=convention,
         out_dir=out_dir,
@@ -264,7 +266,6 @@ def sage_workflow(
 
     # iter_data = [optcom_t2star, optcom_t2]
     # iter_labels = ["T2star", "T2"]
-
 
     # for data_oc, iter_label in zip(iter_data, iter_labels):
     #     out_dir = os.path.abspath(out_dir + "_" + iter_label)
@@ -312,7 +313,6 @@ def sage_workflow(
     #     n_restarts = 0
     #     seed = fixed_seed
 
-
     #     while keep_restarting:
     #         mmix, seed = decomposition.tedica(
     #             dd, n_components, seed, maxit, maxrestart=(maxrestart - n_restarts)
@@ -356,7 +356,6 @@ def sage_workflow(
     #             keep_restarting = False
     #         else:
     #             keep_restarting = False
-
 
     #     # Write out ICA files.
     #     comp_names = comptable["Component"].values

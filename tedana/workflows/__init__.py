@@ -5,6 +5,6 @@
 from .t2star import t2smap_workflow
 
 # Overrides submodules with their functions.
-from .full import tedana_workflow
+from .tedana import tedana_workflow
 
 __all__ = ["tedana_workflow", "t2smap_workflow"]

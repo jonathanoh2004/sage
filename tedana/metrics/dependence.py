@@ -4,7 +4,7 @@ import logging
 import numpy as np
 from scipy import stats
 
-from tedana import imageio, utils
+from tedana import io, utils
 from tedana.stats import computefeats2, get_coeffs, t_to_z
 
 LGR = logging.getLogger("GENERAL")
@@ -225,7 +225,7 @@ def threshold_map(maps, mask, ref_img, threshold, csize=None):
 
     for i_comp in range(n_components):
         # Cluster-extent threshold and binarize F-maps
-        ccimg = imageio.new_nii_like(ref_img, np.squeeze(utils.unmask(maps[:, i_comp], mask)))
+        ccimg = io.new_nii_like(ref_img, np.squeeze(utils.unmask(maps[:, i_comp], mask)))
 
         maps_thresh[:, i_comp] = utils.threshold_map(
             ccimg, min_cluster_size=csize, threshold=threshold, mask=mask, binarize=True
@@ -273,7 +273,7 @@ def threshold_to_match(maps, n_sig_voxels, mask, ref_img, csize=None):
         # of significant voxels from the F-statistic maps. This threshold
         # will be relaxed until the number of significant voxels from both
         # maps is roughly equal.
-        ccimg = imageio.new_nii_like(
+        ccimg = io.new_nii_like(
             ref_img, utils.unmask(stats.rankdata(abs_maps[:, i_comp]), mask)
         )
         step = int(n_sig_voxels[i_comp] / 10)

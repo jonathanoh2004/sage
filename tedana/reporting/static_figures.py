@@ -11,7 +11,7 @@ matplotlib.use("AGG")
 import matplotlib.pyplot as plt
 from nilearn import plotting
 
-from tedana import imageio, stats, utils
+from tedana import io, stats, utils
 
 LGR = logging.getLogger("GENERAL")
 MPL_LGR = logging.getLogger("matplotlib")
@@ -58,11 +58,11 @@ def carpet_plot(optcom_ts, denoised_ts, hikts, lowkts, mask, io_generator, gscon
         pertinent outputs from those steps.
         Default is None.
     """
-    mask_img = imageio.new_nii_like(io_generator.reference_img, mask.astype(int))
-    optcom_img = imageio.new_nii_like(io_generator.reference_img, optcom_ts)
-    dn_img = imageio.new_nii_like(io_generator.reference_img, denoised_ts)
-    hik_img = imageio.new_nii_like(io_generator.reference_img, hikts)
-    lowk_img = imageio.new_nii_like(io_generator.reference_img, lowkts)
+    mask_img = io.new_nii_like(io_generator.reference_img, mask.astype(int))
+    optcom_img = io.new_nii_like(io_generator.reference_img, optcom_ts)
+    dn_img = io.new_nii_like(io_generator.reference_img, denoised_ts)
+    hik_img = io.new_nii_like(io_generator.reference_img, hikts)
+    lowk_img = io.new_nii_like(io_generator.reference_img, lowkts)
 
     # Carpet plots
     fig, ax = plt.subplots(figsize=(14, 7))

@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from tedana import imageio as me
+from tedana import io as me
 from tedana.tests.test_utils import fnames, tes
 from tedana.tests.utils import get_test_data_path
 

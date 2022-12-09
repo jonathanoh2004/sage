@@ -23,7 +23,7 @@ from tedana import (
     combine,
     decay,
     decomposition,
-    imageio,
+    io,
     metrics,
     reporting,
     selection,
@@ -475,8 +475,8 @@ def tedana_workflow(
     tedpca = check_tedpca_value(tedpca, is_parser=False)
 
     LGR.info("Loading input data: {}".format([f for f in data]))
-    catd, ref_img = imageio.load_data(data, n_echos=n_echos)
-    io_generator = imageio.OutputGenerator(
+    catd, ref_img = io.load_data(data, n_echos=n_echos)
+    io_generator = io.OutputGenerator(
         ref_img,
         convention=convention,
         out_dir=out_dir,
@@ -564,7 +564,7 @@ def tedana_workflow(
         mask[t2s_limited == 0] = 0  # reduce mask based on T2* map
     else:
         LGR.info("Computing EPI mask from first echo")
-        first_echo_img = imageio.new_nii_like(io_generator.reference_img, catd[:, 0, :])
+        first_echo_img = io.new_nii_like(io_generator.reference_img, catd[:, 0, :])
         mask = compute_epi_mask(first_echo_img)
         RepLGR.info(
             "An initial mask was generated from the first echo using "
@@ -772,7 +772,7 @@ def tedana_workflow(
         resid = rej_ts - pred_rej_ts
         mmix[:, rej_idx] = resid
         comp_names = [
-            imageio.add_decomp_prefix(comp, prefix="ica", max_value=comptable.index.max())
+            io.add_decomp_prefix(comp, prefix="ica", max_value=comptable.index.max())
             for comp in comptable.index.values
         ]
         mixing_df = pd.DataFrame(data=mmix, columns=comp_names)
@@ -783,7 +783,7 @@ def tedana_workflow(
             "series."
         )
 
-    imageio.writeresults(
+    io.writeresults(
         data_oc,
         mask=mask_denoise,
         comptable=comptable,
@@ -796,7 +796,7 @@ def tedana_workflow(
         gsc.minimum_image_regression(data_oc, mmix, mask_denoise, comptable, io_generator)
 
     if verbose:
-        imageio.writeresults_echoes(catd, mmix, mask_denoise, comptable, io_generator)
+        io.writeresults_echoes(catd, mmix, mask_denoise, comptable, io_generator)
 
     # Write out BIDS-compatible description file
     derivative_metadata = {
@@ -847,7 +847,7 @@ def tedana_workflow(
     if not no_reports:
         LGR.info("Making figures folder with static component maps and timecourse plots.")
 
-        dn_ts, hikts, lowkts = imageio.denoise_ts(data_oc, mmix, mask_denoise, comptable)
+        dn_ts, hikts, lowkts = io.denoise_ts(data_oc, mmix, mask_denoise, comptable)
 
         reporting.static_figures.carpet_plot(
             optcom_ts=data_oc,
