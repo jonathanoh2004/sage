@@ -233,16 +233,17 @@ def make_optcom(data, tes, adaptive_mask, t2s=None, combmode="t2s", verbose=True
 
 
 def make_optcom_sage(data, tes, t2star_map, s0_I_map, t2_map, s0_II_map, mask):
-
     if data.ndim != 3:
-        raise ValueError("Input data must be 3D (S x E x T)")
-
-    if tes.shape[0] != data.shape[1]:
+        raise ValueError("Data should be of dimension (S x E x T)")
+    if data.shape[1] != len(tes):
         raise ValueError(
-            "Number of echos provided does not match second "
-            "dimension of input data: {0} != "
-            "{1}".format(len(tes), data.shape[1])
+            "Second dimension of data ({0}) does not match number "
+            "of echoes provided (tes; {1})".format(data.shape[1], len(tes))
         )
+    if len(tes) != 5:
+        raise ValueError("SAGE requires 5 echos for computing T2 and T2*-weighted optimal combinations")
+    if mask.shape != (data.shape[0], 1):
+        raise ValueError("Shape of mask must match (data.shape[0], 1)")
 
     data = data[mask]
 
