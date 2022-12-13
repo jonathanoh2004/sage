@@ -82,6 +82,7 @@ def sage_workflow(
 
     # TODO: decide on which data cleaning procedures to use for computing maps
     # TODO: validate nonlinear decay fitting
+    # TODO: make both loglinear and nonlinear work with both 1 or >1 time points
 
     # If fittype="loglin", each output map is over samples and volumes (S x T)
     # Else if fittype="nonlin", each output map is over samples (S)
@@ -96,6 +97,9 @@ def sage_workflow(
 
     # TODO: decide whether to average over volumes here in the event of loglin fitting
     # TODO: check if changes are needed to optcom based on assumed model (i.e. 4 parameter fit with delta)
+    # TODO: determine whether tese should be included in the weighting for T2-weighted
+    # TODO: make work with single or varying numbers of time points
+    # TODO: decide on masking
 
     optcom_t2star, optcom_t2 = combine.make_optcom_sage(
         catd, tes, t2star_maps, s0_I_maps, t2_maps, s0_II_maps, mask
@@ -139,19 +143,22 @@ def sage_workflow(
     iter_data = [optcom_t2star, optcom_t2]
     iter_labels = ["T2star", "T2"]
 
-    for data_oc, iter_label in zip(iter_data, iter_labels):
-        out_dir = os.path.abspath(out_dir + "_" + iter_label)
-        if not os.path.isdir(out_dir):
-            os.mkdir(out_dir)
+    io_generator.save_file(optcom_t2star, "optcom t2star img")
+    io_generator.save_file(optcom_t2, "optcom t2 img")
 
-        io_generator = io.OutputGenerator(
-                ref_img,
-                convention=convention,
-                out_dir=out_dir,
-                prefix=prefix,
-                config="auto",
-                verbose=verbose,
-            )
+    # for data_oc, iter_label in zip(iter_data, iter_labels):
+    #     out_dir = os.path.abspath(out_dir + "_" + iter_label)
+    #     if not os.path.isdir(out_dir):
+    #         os.mkdir(out_dir)
+
+    #     io_generator = io.OutputGenerator(
+    #             ref_img,
+    #             convention=convention,
+    #             out_dir=out_dir,
+    #             prefix=prefix,
+    #             config="auto",
+    #             verbose=verbose,
+    #         )
 
     #     # mask = np.tile([True], data_oc_t2star_I.shape[0])
     #     masksum = np.tile([n_echos], n_samps)
@@ -275,14 +282,14 @@ def sage_workflow(
     #         mixing_df = pd.DataFrame(data=mmix, columns=comp_names)
     #         io_generator.save_file(mixing_df, "ICA orthogonalized mixing tsv")
 
-        io.writeresults(
-            utils.unmask(data_oc, mask),
-            mask=mask,
-            comptable=None,
-            mmix=None,
-            n_vols=n_vols,
-            io_generator=io_generator,
-        )
+        # io.writeresults(
+        #     data_oc,
+        #     mask=mask,
+        #     comptable=None,
+        #     mmix=None,
+        #     n_vols=n_vols,
+        #     io_generator=io_generator,
+        # )
 
     #     if "mir" in gscontrol:
     #         gsc.minimum_image_regression(
