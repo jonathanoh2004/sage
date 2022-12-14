@@ -35,6 +35,7 @@ def sage_workflow(
     convention="bids",
     prefix="",
     fittype="loglin",
+    fitmode="all",
     combmode="t2s",
     gscontrol=None,
     tedpca="aic",
@@ -87,7 +88,7 @@ def sage_workflow(
 
     # If fittype="loglin", each output map is over samples and volumes (S x T)
     # Else if fittype="nonlin", each output map is over samples (S)
-    t2star_maps, s0_I_maps, t2_maps, delta_maps = decay.fit_decay_sage(catd, tes, mask, fittype)
+    t2star_maps, s0_I_maps, t2_maps, delta_maps = decay.fit_decay_sage(catd, tes, mask, fittype, fitmode)
 
     s0_II_maps = (1 / delta_maps) * s0_I_maps
     # s0_II_maps[~np.isfinite(s0_II_maps)] = 0
@@ -390,6 +391,20 @@ def _get_parser():
         "demanding monoexponential model is fit"
         "to the raw data",
         default="loglin",
+    )
+    parser.add_argument(
+        "--fitmode",
+        dest="fitmode",
+        action="store",
+        choices=["all", "each"],
+        help=(
+            "Monoexponential model fitting scheme. "
+            '"all" means that the model is fit, per voxel, '
+            "across all timepoints. "
+            '"each" means that the model is fit, per voxel '
+            "and per timepoint."
+        ),
+        default="all",
     )
     parser.add_argument(
         "--combmode",
