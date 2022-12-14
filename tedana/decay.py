@@ -150,13 +150,19 @@ def fit_nonlinear_sage(data_cat, echo_times, mask, report=True):
     res_t2_map = np.zeros((n_samp))
     res_delta_map = np.zeros((n_samp))
 
+    idx_X_I = X < echo_times[-1] / 2
+    idx_X_II = X > echo_times[-1] / 2
+
     def model(X, t2star, s0_I, t2, delta):
         r2star = 1 / t2star
         r2 = 1 / t2
 
-        return (
-            np.exp(-1 * tese * (r2star - r2)) * np.exp(-1 * X * ((2 * r2) - r2star)) * s0_I / delta
-        )
+        res = np.zeros(X.shape)
+
+        res[idx_X_I] = s0_I * np.exp(-1 * X[idx_X_I] * r2star)
+        res[idx_X_II] = np.exp(-1 * tese * (r2star - r2)) * np.exp(-1 * X[idx_X_II] * ((2 * r2) - r2star)) * s0_I / delta
+
+        return res
 
     fail_count = 0
     for i_v in range(Y.shape[0]):

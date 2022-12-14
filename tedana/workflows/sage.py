@@ -83,6 +83,7 @@ def sage_workflow(
     # TODO: decide on which data cleaning procedures to use for computing maps
     # TODO: validate nonlinear decay fitting
     # TODO: make both loglinear and nonlinear work with both 1 or >1 time points
+    # TODO: decide on how to do the bounds in nonlinear
 
     # If fittype="loglin", each output map is over samples and volumes (S x T)
     # Else if fittype="nonlin", each output map is over samples (S)
