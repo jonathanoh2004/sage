@@ -33,6 +33,7 @@ def testdata_sage():
         for out_file in out_files
     )
     fittypes = ["loglin", "nonlin"]
+    fitmodes = ["all", "each"]
 
     data_dict = {
         "data": catd,
@@ -43,16 +44,18 @@ def testdata_sage():
         "exp_s0_I": exp_s0_I,
         "exp_t2": exp_t2,
         "exp_s0_II": exp_s0_II,
+        "fitmodes": fitmodes,
     }
     return data_dict
 
 
 def test_decay_sage_loglin(testdata_sage):
-    catd, tes, mask, fittypes = (
+    catd, tes, mask, fittypes, fitmodes = (
         testdata_sage["data"],
         testdata_sage["echo_times"],
         testdata_sage["mask"],
         testdata_sage["fittypes"],
+        testdata_sage["fitmodes"],
     )
     exp_t2star, exp_s0_I, exp_t2, exp_s0_II = (
         testdata_sage["exp_t2star"],
@@ -60,10 +63,17 @@ def test_decay_sage_loglin(testdata_sage):
         testdata_sage["exp_t2"],
         testdata_sage["exp_s0_II"],
     )
-    t2star, s0_I, t2, delta = decay.fit_decay_sage(catd, tes, mask, fittypes[0])
+
+    t2star, s0_I, t2, delta = decay.fit_decay_sage(catd, tes, mask, fittypes[0], fitmodes[0])
     s0_II = (1 / delta) * s0_I
 
-    decimal = 3
+    np.testing.assert_allclose(t2star, exp_t2star)
+    np.testing.assert_allclose(s0_I, exp_s0_I)
+    np.testing.assert_allclose(t2, exp_t2)
+    np.testing.assert_allclose(s0_II, exp_s0_II)
+
+    t2star, s0_I, t2, delta = decay.fit_decay_sage(catd, tes, mask, fittypes[0], fitmodes[1])
+    s0_II = (1 / delta) * s0_I
 
     np.testing.assert_allclose(t2star, exp_t2star)
     np.testing.assert_allclose(s0_I, exp_s0_I)

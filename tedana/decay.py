@@ -1,7 +1,7 @@
 """
 Functions to estimate S0 and T2* from multi-echo data.
 """
-import traceback
+# import traceback
 import logging
 
 import numpy as np
@@ -44,7 +44,7 @@ def fit_decay_sage(data, tes, mask, fittype, fitmode):
 
     if fitmode == "all":
         t2star_maps, s0_I_maps, t2_maps, delta_maps = fit_func(data, tes, mask)
-    else:
+    elif fitmode == "each":
         result_dim = (data.shape[0], data.shape[2])
         t2star_maps = np.zeros(result_dim)
         s0_I_maps = np.zeros(result_dim)
@@ -55,6 +55,8 @@ def fit_decay_sage(data, tes, mask, fittype, fitmode):
             t2star_maps[:, i_t], s0_I_maps[:, i_t], t2_maps[:, i_t], delta_maps[:, i_t] = fit_func(
                 np.expand_dims(data[:, :, i_t], axis=2), tes, mask
             )
+    else:
+        raise ValueError("invalid value for fitmode argument")
 
     return t2star_maps, s0_I_maps, t2_maps, delta_maps
 
@@ -135,10 +137,19 @@ def fit_nonlinear_sage(data_cat, echo_times, mask):
     s0_I_map[~np.isfinite(s0_I_map)] = 0
     delta_map[~np.isfinite(delta_map)] = 0
 
-    t2star_map = np.mean(t2star_map, axis=1)
-    s0_I_map = np.mean(s0_I_map, axis=1)
-    t2_map = np.mean(t2_map, axis=1)
-    delta_map = np.mean(delta_map, axis=1)
+    # if t2star_map.ndim == 1:
+    #     t2star_map = t2star_map[:, np.newaxis]
+    #     s0_I_map = s0_I_map[:, np.newaxis]
+    #     t2_map = t2_map[:, np.newaxis]
+    #     delta_map = delta_map[:, np.newaxis]
+    # elif t2star_map.ndim != 2:
+    #     raise ValueError("Incorrect Dimensions of Maps")
+
+    if t2star_map.ndim == 2:
+        t2star_map = np.mean(t2star_map, axis=1)
+        s0_I_map = np.mean(s0_I_map, axis=1)
+        t2_map = np.mean(t2_map, axis=1)
+        delta_map = np.mean(delta_map, axis=1)
 
     Y = data_cat.reshape(n_samp, -1) * (
         np.repeat(mask.astype(bool), axis=1, repeats=(n_echos * n_vols))

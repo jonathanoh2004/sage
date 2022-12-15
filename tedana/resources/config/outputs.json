@@ -1,35 +1,31 @@
 {
-    "adaptive mask img": {
-        "orig": "adaptive_mask",
-        "bidsv1.5.0": "desc-adaptiveGoodSignal_mask"
-    },
     "t2star img": {
-        "orig": "t2svG",
-        "bidsv1.5.0": "T2starmap"
+        "orig": "t2starvG",
+        "bidsv1.5.0": "T2star_Map"
     },
     "t2 img": {
         "orig": "t2vG",
-        "bidsv1.5.0": "T2map"
+        "bidsv1.5.0": "T2_Map"
     },
-    "s0 img": {
-        "orig": "s0vG",
-        "bidsv1.5.0": "S0map"
+    "s0I img": {
+        "orig": "s0IvG",
+        "bidsv1.5.0": "S0I_Map"
+    },
+    "s0II img": {
+        "orig": "s0IIvG",
+        "bidsv1.5.0": "S0II_Map"
     },
     "optcom t2star img": {
-        "orig": "s0vG",
-        "bidsv1.5.0": "OptcomT2starmap"
+        "orig": "optcomt2starvG",
+        "bidsv1.5.0": "Optcom_T2star_Signal"
     },
     "optcom t2 img": {
-        "orig": "t2vG",
-        "bidsv1.5.0": "OptcomT2map"
+        "orig": "optcomt2vG",
+        "bidsv1.5.0": "Optcom_T2_Signal"
     },
-    "s0_I img": {
-        "orig": "s0IvG",
-        "bidsv1.5.0": "S0Imap"
-    },
-    "s0_II img": {
-        "orig": "s0IIvG",
-        "bidsv1.5.0": "S0IImap"
+    "adaptive mask img": {
+        "orig": "adaptive_mask",
+        "bidsv1.5.0": "desc-adaptiveGoodSignal_mask"
     },
     "combined img": {
         "orig": "ts_OC",
