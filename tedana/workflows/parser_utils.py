@@ -40,3 +40,13 @@ def is_valid_file(parser, arg):
         parser.error("The file {0} does not exist!".format(arg))
 
     return arg
+
+
+def is_valid_dir(parser, arg):
+    """
+    Check if argument is existing directory.
+    """
+    if not op.isdir(arg) and arg is not None:
+        parser.error("The directory {0} does not exist!".format(arg))
+
+    return arg

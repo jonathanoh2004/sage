@@ -10,6 +10,7 @@ from tedana.tests.utils_sage import get_test_data_path_sage
 
 @pytest.fixture(scope="module")
 def testdata_sage():
+    out_dir = "loglin"
     echo_times = np.array([7.9, 27, 58, 77, 96]) / 1000
     n_echos = len(echo_times)
     in_files = [
@@ -22,8 +23,8 @@ def testdata_sage():
         get_test_data_path_sage(), "Multigre_SAGE_e2_tshift_tmean_bet_mask.nii.gz"
     )
     out_files = [
-        os.path.join(get_test_data_path_sage(), name)
-        for name in ["T2starmap.nii.gz", "S0Imap.nii.gz", "T2map.nii.gz", "S0IImap.nii.gz"]
+        os.path.join(get_test_data_path_sage(), out_dir, name)
+        for name in ["T2starmap_Loglin.nii.gz", "S0Imap_Loglin.nii.gz", "T2map_Loglin.nii.gz", "S0IImap_Loglin.nii.gz"]
     ]
 
     catd, _ = io.load_data(in_files, n_echos)

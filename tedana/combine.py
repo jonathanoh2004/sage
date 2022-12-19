@@ -43,8 +43,8 @@ def make_optcom_sage(data, tes, t2star_map, s0_I_map, t2_map, s0_II_map, mask):
 
     echo_axis = 1
 
-    optcom_t2star = np.sum(w_t2star * (data * np.expand_dims(mask.astype(bool), axis=2)), axis=echo_axis)
-    optcom_t2 = np.sum(w_t2 * (data * np.expand_dims(mask.astype(bool), axis=2)), axis=echo_axis)
+    optcom_t2star = np.sum(w_t2star * (data * np.expand_dims(mask, axis=2)), axis=echo_axis)
+    optcom_t2 = np.sum(w_t2 * (data * np.expand_dims(mask, axis=2)), axis=echo_axis)
 
     return optcom_t2star, optcom_t2
 
@@ -53,7 +53,8 @@ def weights_sage(tes, t2star_map, s0_I_map, t2_map, s0_II_map):
     '''
     Computes both T2* and T2-weighted weights for each (voxel, echo)
     pair for gradient echos
-    Output will either be of shape (V x E) or (V x E x T)
+    Inputs will either be of shape (S) or (S x T)
+    Output will be of shape (S x T) or (S) when fixed in loglin
     '''
     if not (t2star_map.shape == s0_I_map.shape and s0_I_map.shape == t2_map.shape and t2_map.shape == s0_II_map.shape):
         raise ValueError("maps must be of same shape")
@@ -113,8 +114,6 @@ def weights_sage(tes, t2star_map, s0_I_map, t2_map, s0_II_map):
     w_t2star[:, idx_II, :] = w_t2star_II
     w_t2[:, idx_I, :] = w_t2_I
     w_t2[:, idx_II, :] = w_t2_II
-
-    assert (w_t2star.shape == w_t2.shape)
 
     # If all values across echos are 0, set to 1 to avoid
     # divide-by-zero errors

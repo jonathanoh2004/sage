@@ -70,7 +70,7 @@ def fit_loglinear_sage(data_cat, echo_times, mask):
     tese = echo_times[-1, 0]
 
     Y = data_cat.swapaxes(1, 2).reshape((n_samps * n_vols, -1)).T
-    Y = np.log(Y) * (np.repeat(mask.astype(bool), axis=0, repeats=n_vols).T)
+    Y = np.log(Y) * (np.repeat(mask, axis=0, repeats=n_vols).T)
 
     # x_r2star = np.replace(echo_times.copy()  * -1)
     # x_r2star[-1, 0] = 0
@@ -125,7 +125,7 @@ def fit_nonlinear_sage(data_cat, echo_times, mask):
     """
     This function fits over each voxel independently (all time points)
     """
-    n_samp, n_echos, n_vols = data_cat.shape
+    n_samps, n_echos, n_vols = data_cat.shape
     tese = echo_times[-1]
 
     t2star_map, s0_I_map, t2_map, delta_map = fit_loglinear_sage(
@@ -151,15 +151,15 @@ def fit_nonlinear_sage(data_cat, echo_times, mask):
         t2_map = np.mean(t2_map, axis=1)
         delta_map = np.mean(delta_map, axis=1)
 
-    Y = data_cat.reshape(n_samp, -1) * (
-        np.repeat(mask.astype(bool), axis=1, repeats=(n_echos * n_vols))
+    Y = data_cat.reshape(n_samps, -1) * (
+        np.repeat(mask, axis=1, repeats=(n_echos * n_vols))
     )
     X = np.repeat(echo_times, n_vols)
 
-    res_t2star_map = np.zeros((n_samp))
-    res_s0_I_map = np.zeros((n_samp))
-    res_t2_map = np.zeros((n_samp))
-    res_delta_map = np.zeros((n_samp))
+    res_t2star_map = np.zeros((n_samps))
+    res_s0_I_map = np.zeros((n_samps))
+    res_t2_map = np.zeros((n_samps))
+    res_delta_map = np.zeros((n_samps))
 
     idx_X_I = X < echo_times[-1] / 2
     idx_X_II = X > echo_times[-1] / 2
@@ -184,9 +184,12 @@ def fit_nonlinear_sage(data_cat, echo_times, mask):
                 Y[i_v, :],
                 p0=(t2star_map[i_v], s0_I_map[i_v], t2_map[i_v], delta_map[i_v]),
                 bounds=(
-                    (0, np.min(Y[i_v, :]), 0, np.min(Y[i_v, :])),
-                    (np.inf, np.inf, np.inf, np.inf),
+                    (0.1, 0, 0.1, 0),
+                    (10000, np.inf, 10000, np.inf),
                 ),
+                ftol=1e-12,
+                xtol=1e-12,
+                max_nfev=10000
             )
             res_t2star_map[i_v] = popt[0]
             res_s0_I_map[i_v] = popt[1]
