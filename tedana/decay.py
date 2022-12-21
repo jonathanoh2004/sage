@@ -44,22 +44,23 @@ def fit_decay_sage(data, tes, mask, fittype, fitmode):
 
     if fitmode == "all":
         t2star_maps, s0_I_maps, t2_maps, delta_maps = fit_func(data, tes, mask)
+        rmspe = None
     elif fitmode == "each":
         result_dim = (data.shape[0], data.shape[2])
         t2star_maps = np.zeros(result_dim)
         s0_I_maps = np.zeros(result_dim)
         t2_maps = np.zeros(result_dim)
         delta_maps = np.zeros(result_dim)
-        rmpse = np.zeros(result_dim)
+        rmspe = np.zeros(result_dim)
 
         for i_t in range(data.shape[2]):
-            t2star_maps[:, i_t], s0_I_maps[:, i_t], t2_maps[:, i_t], delta_maps[:, i_t], rmpse[:, i_t] = fit_func(
+            t2star_maps[:, i_t], s0_I_maps[:, i_t], t2_maps[:, i_t], delta_maps[:, i_t], rmspe[:, i_t] = fit_func(
                 np.expand_dims(data[:, :, i_t], axis=2), tes, mask
             )
     else:
         raise ValueError("invalid value for fitmode argument")
 
-    return t2star_maps, s0_I_maps, t2_maps, delta_maps, rmpse
+    return t2star_maps, s0_I_maps, t2_maps, delta_maps, rmspe
 
 
 def fit_loglinear_sage(data_cat, echo_times, mask):

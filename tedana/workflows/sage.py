@@ -26,6 +26,8 @@ from tedana import (
     reporting,
 )
 
+from tedana.bibtex import get_description_references
+
 import tedana.workflows.parser_utils as parser_utils
 from tedana.stats import computefeats2
 
@@ -93,12 +95,6 @@ def sage_workflow(
     if not os.path.isdir(sub_dir):
         os.mkdir(sub_dir)
 
-    # set up logging
-    logname = None
-    repname = os.path.join(out_dir, "report.txt")
-
-    utils.setup_loggers(logname=logname, repname=repname, quiet=quiet, debug=debug)
-
     io_generator = io.OutputGenerator(
         ref_img,
         convention=convention,
@@ -107,7 +103,7 @@ def sage_workflow(
         config="auto",
         verbose=verbose,
     )
-    # used to get keys expected by io_generator.save_file and outputs.json
+    # used to get keys expected by io_generator.save_file() and outputs.json
     output_keys = {
         "t2star": ' '.join(("t2star", "img")),
         "t2": ' '.join(("t2", "img")),
@@ -117,12 +113,14 @@ def sage_workflow(
         "optcom_t2star": ' '.join(("optcom", "t2star", "img")),
         "optcom_t2": ' '.join(("optcom", "t2", "img")),
     }
+    if fittype == "loglin":
+        output_keys.pop("rmspe")
 
     if rerun is not None:
         if os.path.isdir(rerun):
             rerun_files = {k: os.path.join(rerun, sub_dir, prefix + io_generator.get_name(output_keys[k])) for k in output_keys}
             if not all([os.path.isfile(rerun_file) for rerun_file in rerun_files.values()]):
-                raise ValueError("When rerunning, all relevant files must be present: T2star, T2, S0I, S0II, optcom_T2star, and optcom_T2")
+                raise ValueError("When rerunning, all relevant files must be present: T2star, T2, S0I, S0II, Optcom_T2star, and Optcom_T2")
         try:
             rerun_imgs = {k: nilearn.image.load_img(rerun_files[k]).get_fdata() for k in rerun_files}
         except Exception:
@@ -185,14 +183,16 @@ def sage_workflow(
         # s0I_outputs_key = ' '.join(("s0I", "img"))
         # s0II_outputs_key = ' '.join(("s0II", "img"))
 
-        io_generator.save_file(rmspe, output_keys["rmspe"])
+        
         io_generator.save_file(s0_I_maps, output_keys["s0I"])
         io_generator.save_file(s0_II_maps, output_keys["s0II"])
         io_generator.save_file(t2star_maps, output_keys["t2star"])
         io_generator.save_file(t2_maps, output_keys["t2"])
+        if rmspe is not None:
+            io_generator.save_file(rmspe, output_keys["rmspe"])
 
         ########################################################################################
-        ####################### DENOISING ######################################################
+        ####################### TEDANA DENOISING ###############################################
         ########################################################################################
 
         # optcom_t2star_outputs_key = ' '.join(("optcom", "t2star", "img"))
@@ -205,6 +205,11 @@ def sage_workflow(
         sub_dir_tedana = os.path.abspath(os.path.join(sub_dir, iter_label))
         if not os.path.isdir(sub_dir_tedana):
             os.mkdir(sub_dir_tedana)
+
+        # set up logging
+        repname = os.path.join(sub_dir_tedana, "report.txt")
+
+        utils.setup_loggers(logname=None, repname=repname, quiet=quiet, debug=debug)
 
         io_generator = io.OutputGenerator(
                 ref_img,
@@ -364,18 +369,20 @@ def sage_workflow(
         if verbose:
             io.writeresults_echoes(catd, mmix, mask, comptable, io_generator)
 
-        # with open(repname, "r") as fo:
-        #     report = [line.rstrip() for line in fo.readlines()]
-        #     report = " ".join(report)
+        with open(repname, "r") as fo:
+            report = [line.rstrip() for line in fo.readlines()]
+            report = " ".join(report)
 
-        # with open(repname, "w") as fo:
-        #     fo.write(report)
+        with open(repname, "w") as fo:
+            fo.write(report)
 
-        # # Collect BibTeX entries for cited papers
-        # references = get_description_references(report)
+        bibtex_file = os.path.join(sub_dir_tedana, "references.bib")
 
-        # with open(bibtex_file, "w") as fo:
-        #     fo.write(references)
+        # Collect BibTeX entries for cited papers
+        references = get_description_references(report)
+
+        with open(bibtex_file, "w") as fo:
+            fo.write(references)
 
         if not no_reports:
             print("Making figures folder with static component maps and timecourse plots.")
@@ -425,7 +432,7 @@ def sage_workflow(
                 print("Generating dynamic report")
                 reporting.generate_report(io_generator, tr=img_t_r)
 
-    utils.teardown_loggers()
+        utils.teardown_loggers()
     print("Workflow completed")
     
 
@@ -551,9 +558,9 @@ def _get_parser():
         default=False,
     )
     parser.add_argument(
-        "--rerun",
+        "--rerun-dir",
         dest="rerun",
-        metavar="DIR",
+        metavar="PATH",
         type=lambda x: parser_utils.is_valid_dir(parser, x),
         help=("Precalculated T2star, T2, S0I, and S0II maps and optcoms"),
         default=None,
