@@ -15,6 +15,10 @@
         "orig": "s0IIvG",
         "bidsv1.5.0": "S0II_Map"
     },
+    "rmspe img": {
+        "orig": "rmspevG",
+        "bidsv1.5.0": "RMSPE_Map"
+    },
     "optcom t2star img": {
         "orig": "optcomt2starvG",
         "bidsv1.5.0": "Optcom_T2star_Signal"

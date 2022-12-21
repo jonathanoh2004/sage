@@ -6,6 +6,7 @@ and combine data across TEs according to (cite paper)
 
 import os
 import sys
+import logging
 from threadpoolctl import threadpool_limits
 import argparse
 import json
@@ -24,9 +25,12 @@ from tedana import (
     selection,
     reporting,
 )
+
 import tedana.workflows.parser_utils as parser_utils
 from tedana.stats import computefeats2
 
+LGR = logging.getLogger("GENERAL")
+RepLGR = logging.getLogger("REPORT")
 
 def sage_workflow(
     data,
@@ -48,7 +52,7 @@ def sage_workflow(
     png_cmap="coolwarm",
     low_mem=False,
     verbose=False,
-    rerun="",
+    rerun=None,
     debug=False,
     quiet=False,
     mixm=None,
@@ -89,6 +93,12 @@ def sage_workflow(
     if not os.path.isdir(sub_dir):
         os.mkdir(sub_dir)
 
+    # set up logging
+    logname = None
+    repname = os.path.join(out_dir, "report.txt")
+
+    utils.setup_loggers(logname=logname, repname=repname, quiet=quiet, debug=debug)
+
     io_generator = io.OutputGenerator(
         ref_img,
         convention=convention,
@@ -103,11 +113,12 @@ def sage_workflow(
         "t2": ' '.join(("t2", "img")),
         "s0I": ' '.join(("s0I", "img")),
         "s0II": ' '.join(("s0II", "img")),
+        "rmspe": ' '.join(("rmspe", "img")),
         "optcom_t2star": ' '.join(("optcom", "t2star", "img")),
         "optcom_t2": ' '.join(("optcom", "t2", "img")),
     }
 
-    if rerun != "":
+    if rerun is not None:
         if os.path.isdir(rerun):
             rerun_files = {k: os.path.join(rerun, sub_dir, prefix + io_generator.get_name(output_keys[k])) for k in output_keys}
             if not all([os.path.isfile(rerun_file) for rerun_file in rerun_files.values()]):
@@ -118,7 +129,6 @@ def sage_workflow(
             print("Error loading rerun imgs. Imgs will be recomputed.")
             rerun_imgs = None
 
-    if rerun_imgs is not None:
         # TODO: change how the reshaping is done based on fitmode
         t2star_maps = rerun_imgs["t2star"].reshape(n_samps, n_vols)
         t2_maps = rerun_imgs["t2"].reshape(n_samps, n_vols)
@@ -138,7 +148,7 @@ def sage_workflow(
 
         # If fitmode="all", each output map is over samples (S)
         # Else if fitmode="each", each output map is over samples and volumes (S x T)
-        t2star_maps, s0_I_maps, t2_maps, delta_maps = decay.fit_decay_sage(catd, tes, mask.reshape(n_samps, 1), fittype, fitmode)
+        t2star_maps, s0_I_maps, t2_maps, delta_maps, rmspe = decay.fit_decay_sage(catd, tes, mask.reshape(n_samps, 1), fittype, fitmode)
 
         s0_II_maps = (1 / delta_maps) * s0_I_maps
         # s0_II_maps[~np.isfinite(s0_II_maps)] = 0
@@ -175,6 +185,7 @@ def sage_workflow(
         # s0I_outputs_key = ' '.join(("s0I", "img"))
         # s0II_outputs_key = ' '.join(("s0II", "img"))
 
+        io_generator.save_file(rmspe, output_keys["rmspe"])
         io_generator.save_file(s0_I_maps, output_keys["s0I"])
         io_generator.save_file(s0_II_maps, output_keys["s0II"])
         io_generator.save_file(t2star_maps, output_keys["t2star"])
@@ -392,29 +403,31 @@ def sage_workflow(
             )
 
             # TODO: add back in along with logging
-            # img_t_r = io_generator.reference_img.header.get_zooms()[-1]
-            # if img_t_r == 0:
-            #     raise IOError(
-            #         "Dataset has a TR of 0. This indicates incorrect"
-            #         " header information. To correct this, we recommend"
-            #         " using this snippet:"
-            #         "\n"
-            #         "https://gist.github.com/jbteves/032c87aeb080dd8de8861cb151bff5d6"
-            #         "\n"
-            #         "to correct your TR to the value it should be."
-            #     )
+            img_t_r = io_generator.reference_img.header.get_zooms()[-1]
+            if img_t_r == 0:
+                raise IOError(
+                    "Dataset has a TR of 0. This indicates incorrect"
+                    " header information. To correct this, we recommend"
+                    " using this snippet:"
+                    "\n"
+                    "https://gist.github.com/jbteves/032c87aeb080dd8de8861cb151bff5d6"
+                    "\n"
+                    "to correct your TR to the value it should be."
+                )
 
-            # if sys.version_info.major == 3 and sys.version_info.minor < 6:
-            #     warn_msg = (
-            #         "Reports requested but Python version is less than "
-            #         "3.6.0. Dynamic reports will not be generated."
-            #     )
-            #     print(warn_msg)
-            # else:
-            #     print("Generating dynamic report")
-            #     reporting.generate_report(io_generator, tr=img_t_r)
+            if sys.version_info.major == 3 and sys.version_info.minor < 6:
+                warn_msg = (
+                    "Reports requested but Python version is less than "
+                    "3.6.0. Dynamic reports will not be generated."
+                )
+                print(warn_msg)
+            else:
+                print("Generating dynamic report")
+                reporting.generate_report(io_generator, tr=img_t_r)
 
+    utils.teardown_loggers()
     print("Workflow completed")
+    
 
 
 def _get_parser():
