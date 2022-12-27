@@ -137,7 +137,9 @@ def fit_nonlinear_sage(data_cat, echo_times, mask):
     t2star_map[~np.isfinite(t2star_map)] = 0.05
     t2_map[~np.isfinite(t2_map)] = 0.067
     s0_I_map[~np.isfinite(s0_I_map)] = np.mean(s0_I_map[np.isfinite(s0_I_map)])
-    delta_map[np.logical_or(delta_map < -9, delta_map > 11, np.isnan(delta_map))] = 1
+    # delta_map[np.logical_or(delta_map < -9, delta_map > 11, np.isnan(delta_map))] = 1
+    s0_II_map = s0_I_map / delta_map
+    s0_II_map[~np.isfinite(s0_II_map)] = np.mean(s0_II_map[np.isfinite(s0_II_map)])
 
     # if t2star_map.ndim == 1:
     #     t2star_map = t2star_map[:, np.newaxis]
@@ -151,7 +153,7 @@ def fit_nonlinear_sage(data_cat, echo_times, mask):
         t2star_map = np.mean(t2star_map, axis=1)
         s0_I_map = np.mean(s0_I_map, axis=1)
         t2_map = np.mean(t2_map, axis=1)
-        delta_map = np.mean(delta_map, axis=1)
+        s0_II_map = np.mean(s0_II_map, axis=1)
 
     Y = data_cat.reshape(n_samps, -1) * (
         np.repeat(mask, axis=1, repeats=(n_echos * n_vols))
@@ -161,20 +163,20 @@ def fit_nonlinear_sage(data_cat, echo_times, mask):
     res_t2star_map = np.zeros((n_samps))
     res_s0_I_map = np.zeros((n_samps))
     res_t2_map = np.zeros((n_samps))
-    res_delta_map = np.zeros((n_samps))
+    res_s0_II_map = np.zeros((n_samps))
     rmspe = np.zeros((n_samps))
 
     idx_X_I = X < echo_times[-1] / 2
     idx_X_II = X > echo_times[-1] / 2
 
-    def model(X, t2star, s0_I, t2):
+    def model(X, t2star, s0_I, t2, s0_II):
         r2star = 1 / t2star
         r2 = 1 / t2
 
         res = np.zeros(X.shape)
 
         res[idx_X_I] = s0_I * np.exp(-1 * X[idx_X_I] * r2star)
-        res[idx_X_II] = np.exp(-1 * tese * (r2star - r2)) * np.exp(-1 * X[idx_X_II] * ((2 * r2) - r2star)) * s0_I / delta_map[i_v]
+        res[idx_X_II] = s0_II * np.exp(-1 * tese * (r2star - r2)) * np.exp(-1 * X[idx_X_II] * ((2 * r2) - r2star))
 
         # res[~np.isfinite(res)] = 0
 
@@ -187,10 +189,10 @@ def fit_nonlinear_sage(data_cat, echo_times, mask):
                 model,
                 X,
                 Y[i_v, :],
-                p0=(t2star_map[i_v], s0_I_map[i_v], t2_map[i_v]),
+                p0=(t2star_map[i_v], s0_I_map[i_v], t2_map[i_v], s0_II_map[i_v]),
                 bounds=(
-                    (0, np.min(Y[i_v, :]), 0),
-                    (np.inf, np.inf, np.inf),
+                    (0, 0, 0, 0),
+                    (np.inf, np.inf, np.inf, np.inf),
                 ),
                 ftol=1e-12,
                 xtol=1e-12,
@@ -199,8 +201,8 @@ def fit_nonlinear_sage(data_cat, echo_times, mask):
             res_t2star_map[i_v] = popt[0]
             res_s0_I_map[i_v] = popt[1]
             res_t2_map[i_v] = popt[2]
-            # res_delta_map[i_v] = popt[3]
-            rmspe[i_v] = np.sqrt(np.sum(np.square(100 * (model(X, res_t2star_map[i_v], res_s0_I_map[i_v], res_t2_map[i_v]) - Y[i_v, :]))))
+            res_s0_II_map[i_v] = popt[3]
+            rmspe[i_v] = np.sqrt(np.sum(np.square(100 * (Y[i_v, :] - model(X, res_t2star_map[i_v], res_s0_I_map[i_v], res_t2_map[i_v], res_s0_II_map[i_v])) / Y[i_v, :])) / len(echo_times))
         
         except (RuntimeError, ValueError):
             # print(traceback.print_exc())
@@ -210,7 +212,7 @@ def fit_nonlinear_sage(data_cat, echo_times, mask):
         fail_percent = 100 * fail_count / Y.shape[0]
         print("fail_percent: ", fail_percent)
 
-    return res_t2star_map, res_s0_I_map, res_t2_map, res_delta_map, rmspe
+    return res_t2star_map, res_s0_I_map, res_t2_map, res_s0_II_map, rmspe
 
 
 # def fit_decay_ts_sage(data, tes, mask, fittype):

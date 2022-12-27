@@ -146,9 +146,13 @@ def sage_workflow(
 
         # If fitmode="all", each output map is over samples (S)
         # Else if fitmode="each", each output map is over samples and volumes (S x T)
-        t2star_maps, s0_I_maps, t2_maps, delta_maps, rmspe = decay.fit_decay_sage(catd, tes, mask.reshape(n_samps, 1), fittype, fitmode)
+        if fittype == "loglin":
+            t2star_maps, s0_I_maps, t2_maps, delta_maps, rmspe = decay.fit_decay_sage(catd, tes, mask.reshape(n_samps, 1), fittype, fitmode)
+            s0_II_maps = (1 / delta_maps) * s0_I_maps
+        else:
+            t2star_maps, s0_I_maps, t2_maps, s0_II_maps, rmspe = decay.fit_decay_sage(catd, tes, mask.reshape(n_samps, 1), fittype, fitmode)
 
-        s0_II_maps = (1 / delta_maps) * s0_I_maps
+        
         # s0_II_maps[~np.isfinite(s0_II_maps)] = 0
 
         ########################################################################################
