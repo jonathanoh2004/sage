@@ -49,6 +49,7 @@ def sage_workflow(
     rerun=None,
     debug=False,
     quiet=False,
+    tslice=None,
     mixm=None,
     ctab=None,
     manacc=None,
@@ -63,6 +64,10 @@ def sage_workflow(
     
     tes = np.array([float(te) for te in tes]) / 1000
     catd, ref_img = io.load_data(data, n_echos=len(tes))
+
+    if tslice is not None:
+        catd = catd[:,:,tslice[0]:tslice[1]]
+
     n_samps, n_echos, n_vols = catd.shape
 
     # TODO: see how different masks work in the denoising section
@@ -560,6 +565,14 @@ def _get_parser():
         metavar="PATH",
         type=lambda x: parser_utils.is_valid_dir(parser, x),
         help=("Precalculated T2star, T2, S0I, and S0II maps and optcoms"),
+        default=None,
+    )
+    parser.add_argument(
+        "--tslice",
+        dest="tslice",
+        metavar="tstart:tend",
+        type=lambda x: parser_utils.is_valid_slice(parser, x),
+        help=("Specify slice of the data in the fourth dimension"),
         default=None,
     )
     parser.add_argument(
