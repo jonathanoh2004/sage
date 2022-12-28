@@ -230,7 +230,6 @@ def sage_workflow(
             )
 
         # regress out global signal unless explicitly not desired
-        # NOTE: this assumes gsc.gscontrol_raw() not overwriting catd, which is currently the way it is
         if "gsr" in gscontrol:
             catd, data_oc = gsc.gscontrol_raw(catd_orig, data_oc, n_echos, io_generator)
 
