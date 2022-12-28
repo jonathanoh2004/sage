@@ -1,15 +1,9 @@
-"""
-Estimate T2, T2*, S0_I, and S0_II for SAGE ME-fMRI according to (cite paper)
-and combine data across TEs according to (cite paper)
-"""
-
-
 import os
 import sys
 import logging
-from threadpoolctl import threadpool_limits
 import argparse
 import json
+from threadpoolctl import threadpool_limits
 import numpy as np
 import pandas as pd
 import nilearn.image
@@ -25,11 +19,9 @@ from tedana import (
     selection,
     reporting,
 )
-
-from tedana.bibtex import get_description_references
-
-import tedana.workflows.parser_utils as parser_utils
+from tedana.workflows import parser_utils
 from tedana.stats import computefeats2
+from tedana.bibtex import get_description_references
 
 LGR = logging.getLogger("GENERAL")
 RepLGR = logging.getLogger("REPORT")
@@ -64,17 +56,13 @@ def sage_workflow(
     ########################################################################################
     ####################### RETRIEVE AND PREP DATA #########################################
     ########################################################################################
-
-    tes = np.array([float(te) for te in tes]) / 1000
-
-    if not isinstance(gscontrol, list):
-        gscontrol = [gscontrol]
-
     if isinstance(data, str):
         data = [data]
-
+    if not isinstance(gscontrol, list):
+        gscontrol = [gscontrol]
+    
+    tes = np.array([float(te) for te in tes]) / 1000
     catd, ref_img = io.load_data(data, n_echos=len(tes))
-
     n_samps, n_echos, n_vols = catd.shape
 
     # TODO: see how different masks work in the denoising section
@@ -86,6 +74,21 @@ def sage_workflow(
         mask = np.any(catd != 0, axis=(1, 2)).reshape(n_samps, 1)
         # first_echo_img = io.new_nii_like(io_generator.reference_img, catd[:, 0, :])
         # mask = compute_epi_mask(first_echo_img)
+
+    ########################################################################################
+    ####################### CONFIGURE OUTPUT ###############################################
+    ########################################################################################
+    # used to get keys expected by io_generator.save_file() and outputs.json
+    output_keys = {
+        "t2star": ' '.join(("t2star", "img")),
+        "t2": ' '.join(("t2", "img")),
+        "optcom_t2star": ' '.join(("optcom", "t2star", "img")),
+        "optcom_t2": ' '.join(("optcom", "t2", "img")),
+        "s0I": ' '.join(("s0I", "img")),
+        "s0II": ' '.join(("s0II", "img")),
+        "rmspe": ' '.join(("rmspe", "img")),
+    }
+    rerun_keys = [ "t2star", "t2", "optcom_t2star", "optcom_t2" ]
 
     # set up output directory structure
     out_dir = os.path.abspath("outputs")
@@ -103,26 +106,17 @@ def sage_workflow(
         config="auto",
         verbose=verbose,
     )
-    # used to get keys expected by io_generator.save_file() and outputs.json
-    output_keys = {
-        "t2star": ' '.join(("t2star", "img")),
-        "t2": ' '.join(("t2", "img")),
-        "s0I": ' '.join(("s0I", "img")),
-        "s0II": ' '.join(("s0II", "img")),
-        "rmspe": ' '.join(("rmspe", "img")),
-        "optcom_t2star": ' '.join(("optcom", "t2star", "img")),
-        "optcom_t2": ' '.join(("optcom", "t2", "img")),
-    }
-    if fittype == "loglin":
-        output_keys.pop("rmspe")
 
     if rerun is not None:
         if os.path.isdir(rerun):
-            rerun_files = {k: os.path.join(rerun, sub_dir, prefix + io_generator.get_name(output_keys[k])) for k in output_keys}
-            if not all([os.path.isfile(rerun_file) for rerun_file in rerun_files.values()]):
-                raise ValueError("When rerunning, all relevant files must be present: T2star, T2, S0I, S0II, Optcom_T2star, and Optcom_T2")
+            rerun_files = { k: os.path.join(rerun, sub_dir, prefix + io_generator.get_name(output_keys[k])) for k in rerun_keys }
+            
+            if not all([ os.path.isfile(rerun_file) for rerun_file in rerun_files.values() ]):
+                raise ValueError("When rerunning, all relevant files must be present: T2star, T2, Optcom_T2star, and Optcom_T2")
+
         try:
-            rerun_imgs = {k: nilearn.image.load_img(rerun_files[k]).get_fdata() for k in rerun_files}
+            rerun_imgs = { k: nilearn.image.load_img(rerun_files[k]).get_fdata() for k in rerun_files }
+
         except Exception:
             print("Error loading rerun imgs. Imgs will be recomputed.")
             rerun_imgs = None
@@ -130,10 +124,11 @@ def sage_workflow(
         # TODO: change how the reshaping is done based on fitmode
         t2star_maps = rerun_imgs["t2star"].reshape(n_samps, n_vols)
         t2_maps = rerun_imgs["t2"].reshape(n_samps, n_vols)
-        s0I_maps = rerun_imgs["s0I"].reshape(n_samps, n_vols)
-        s0II_maps = rerun_imgs["s0II"].reshape(n_samps, n_vols)
         optcom_t2star = rerun_imgs["optcom_t2star"].reshape(n_samps, n_vols)
         optcom_t2 = rerun_imgs["optcom_t2"].reshape(n_samps, n_vols)
+        # s0I_maps = rerun_imgs["s0I"].reshape(n_samps, n_vols)
+        # s0II_maps = rerun_imgs["s0II"].reshape(n_samps, n_vols)
+
     else:
         ########################################################################################
         ####################### COMPUTE S0, T2*, T2 MAPS #######################################
@@ -149,11 +144,28 @@ def sage_workflow(
         if fittype == "loglin":
             t2star_maps, s0_I_maps, t2_maps, delta_maps, rmspe = decay.fit_decay_sage(catd, tes, mask.reshape(n_samps, 1), fittype, fitmode)
             s0_II_maps = (1 / delta_maps) * s0_I_maps
-        else:
+        elif fittype == "nonlin":
             t2star_maps, s0_I_maps, t2_maps, s0_II_maps, rmspe = decay.fit_decay_sage(catd, tes, mask.reshape(n_samps, 1), fittype, fitmode)
+        else:
+            raise ValueError("fittype must be either loglin or nonlin") # TODO: move this and related validation to top
 
-        
         # s0_II_maps[~np.isfinite(s0_II_maps)] = 0
+        
+        ########################################################################################
+        ####################### WRITE MAPS #####################################################
+        ########################################################################################
+
+        # t2star_outputs_key = ' '.join(("t2star", "img"))
+        # t2_outputs_key = ' '.join(("t2", "img"))
+        # s0I_outputs_key = ' '.join(("s0I", "img"))
+        # s0II_outputs_key = ' '.join(("s0II", "img"))
+
+        io_generator.save_file(s0_I_maps, output_keys["s0I"])
+        io_generator.save_file(s0_II_maps, output_keys["s0II"])
+        io_generator.save_file(t2star_maps, output_keys["t2star"])
+        io_generator.save_file(t2_maps, output_keys["t2"])
+        if rmspe is not None:
+            io_generator.save_file(rmspe, output_keys["rmspe"])
 
         ########################################################################################
         ####################### COMPUTE OPTIMAL COMBINATIONS ###################################
@@ -177,36 +189,29 @@ def sage_workflow(
         # s0_II_map[s0_II_map < 0] = 0
         # t2star_map[t2star_map < 0] = 0
         # t2_map[t2_map < 0] = 0
+
+    ########################################################################################
+    ####################### TEDANA DENOISING ###############################################
+    ########################################################################################
+    required_metrics = [
+        "kappa",
+        "rho",
+        "countnoise",
+        "countsigFT2",
+        "countsigFS0",
+        "dice_FT2",
+        "dice_FS0",
+        "signal-noise_t",
+        "variance explained",
+        "normalized variance explained",
+        "d_table_score",
+    ]
+
+    catd_orig = catd.copy()
+
+    for data_oc, data_oc_label in [(optcom_t2star, "optcom_t2star"), (optcom_t2, "optcom_t2")]:
+        sub_dir_tedana = os.path.abspath(os.path.join(sub_dir, data_oc_label))
         
-        ########################################################################################
-        ####################### WRITE MAPS AND OPTCOMS OUTPUTS #################################
-        ########################################################################################
-
-        # t2star_outputs_key = ' '.join(("t2star", "img"))
-        # t2_outputs_key = ' '.join(("t2", "img"))
-        # s0I_outputs_key = ' '.join(("s0I", "img"))
-        # s0II_outputs_key = ' '.join(("s0II", "img"))
-
-        
-        io_generator.save_file(s0_I_maps, output_keys["s0I"])
-        io_generator.save_file(s0_II_maps, output_keys["s0II"])
-        io_generator.save_file(t2star_maps, output_keys["t2star"])
-        io_generator.save_file(t2_maps, output_keys["t2"])
-        if rmspe is not None:
-            io_generator.save_file(rmspe, output_keys["rmspe"])
-
-        ########################################################################################
-        ####################### TEDANA DENOISING ###############################################
-        ########################################################################################
-
-        # optcom_t2star_outputs_key = ' '.join(("optcom", "t2star", "img"))
-        # optcom_t2_outputs_key = ' '.join(("optcom", "t2", "img"))
-
-        io_generator.save_file(optcom_t2star, output_keys["optcom_t2star"])
-        io_generator.save_file(optcom_t2, output_keys["optcom_t2"])
-
-    for data_oc, iter_label in [(optcom_t2star, "optcom_t2star"), (optcom_t2, "optcom_t2")]:
-        sub_dir_tedana = os.path.abspath(os.path.join(sub_dir, iter_label))
         if not os.path.isdir(sub_dir_tedana):
             os.mkdir(sub_dir_tedana)
 
@@ -224,12 +229,15 @@ def sage_workflow(
                 verbose=verbose,
             )
 
+        # regress out global signal unless explicitly not desired
+        # NOTE: this assumes gsc.gscontrol_raw() not overwriting catd, which is currently the way it is
+        if "gsr" in gscontrol:
+            catd, data_oc = gsc.gscontrol_raw(catd_orig, data_oc, n_echos, io_generator)
+
+        io_generator.save_file(data_oc, output_keys[data_oc_label])
+
         # masksum = np.tile([n_echos], n_samps)
         masksum = mask * n_echos
-
-        # regress out global signal unless explicitly not desired
-        if "gsr" in gscontrol:
-            catd, data_oc = gsc.gscontrol_raw(catd, data_oc, n_echos, io_generator)
 
         # Identify and remove thermal noise from data
         dd, n_components = decomposition.tedpca(
@@ -267,19 +275,6 @@ def sage_workflow(
             # generated from dimensionally reduced data using full data (i.e., data
             # with thermal noise)
             print("Making second component selection guess from ICA results")
-            required_metrics = [
-                "kappa",
-                "rho",
-                "countnoise",
-                "countsigFT2",
-                "countsigFS0",
-                "dice_FT2",
-                "dice_FS0",
-                "signal-noise_t",
-                "variance explained",
-                "normalized variance explained",
-                "d_table_score",
-            ]
             comptable = metrics.collect.generate_metrics(
                 catd,
                 data_oc,
@@ -330,6 +325,7 @@ def sage_workflow(
             print("No BOLD components detected! Please check data and results!")
         
         mmix_orig = mmix.copy()
+
         if tedort:
             acc_idx = comptable.loc[
                 ~comptable.classification.str.contains("rejected")
@@ -413,7 +409,6 @@ def sage_workflow(
                 png_cmap=png_cmap,
             )
 
-            # TODO: add back in along with logging
             img_t_r = io_generator.reference_img.header.get_zooms()[-1]
             if img_t_r == 0:
                 raise IOError(
@@ -438,7 +433,6 @@ def sage_workflow(
 
         utils.teardown_loggers()
     print("Workflow completed")
-    
 
 
 def _get_parser():
@@ -567,6 +561,35 @@ def _get_parser():
         metavar="PATH",
         type=lambda x: parser_utils.is_valid_dir(parser, x),
         help=("Precalculated T2star, T2, S0I, and S0II maps and optcoms"),
+        default=None,
+    )
+    parser.add_argument(
+        "--mix",
+        dest="mixm",
+        metavar="FILE",
+        type=lambda x: parser_utils.is_valid_file(parser, x),
+        help=("File containing mixing matrix. If not provided, ME-PCA & ME-ICA is done."),
+        default=None,
+    )
+    parser.add_argument(
+        "--ctab",
+        dest="ctab",
+        metavar="FILE",
+        type=lambda x: parser_utils.is_valid_file(parser, x),
+        help=(
+            "File containing a component table from which "
+            "to extract pre-computed classifications. "
+            "Requires --mix."
+        ),
+        default=None,
+    )
+    parser.add_argument(
+        "--manacc",
+        dest="manacc",
+        metavar="INT",
+        type=int,
+        nargs="+",
+        help=("List of manually accepted components. Requires --ctab and --mix."),
         default=None,
     )
     return parser
