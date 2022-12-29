@@ -134,10 +134,14 @@ def fit_nonlinear_sage(data_cat, echo_times, mask):
         data_cat, echo_times, mask
     )
 
-    t2star_map[~np.isfinite(t2star_map)] = 0.05
-    t2_map[~np.isfinite(t2_map)] = 0.067
+    r2star_map = 1 / t2star_map
+    r2_map = 1 / t2_map
+    r2star_map[~np.isfinite(r2star_map)] = 20
+    r2_map[~np.isfinite(r2_map)] = 15
+    # t2star_map[~np.isfinite(t2star_map)] = 0.05
+    # t2_map[~np.isfinite(t2_map)] = 0.067
     s0_I_map[~np.isfinite(s0_I_map)] = np.mean(s0_I_map[np.isfinite(s0_I_map)])
-    # delta_map[np.logical_or(delta_map < -9, delta_map > 11, np.isnan(delta_map))] = 1
+    delta_map[np.logical_or(delta_map < -9, delta_map > 11, np.isnan(delta_map))] = 1
     s0_II_map = s0_I_map / delta_map
     s0_II_map[~np.isfinite(s0_II_map)] = np.mean(s0_II_map[np.isfinite(s0_II_map)])
 
@@ -149,10 +153,10 @@ def fit_nonlinear_sage(data_cat, echo_times, mask):
     # elif t2star_map.ndim != 2:
     #     raise ValueError("Incorrect Dimensions of Maps")
 
-    if t2star_map.ndim == 2:
-        t2star_map = np.mean(t2star_map, axis=1)
+    if r2star_map.ndim == 2:
+        r2star_map = np.mean(r2star_map, axis=1)
         s0_I_map = np.mean(s0_I_map, axis=1)
-        t2_map = np.mean(t2_map, axis=1)
+        r2_map = np.mean(r2_map, axis=1)
         s0_II_map = np.mean(s0_II_map, axis=1)
 
     Y = data_cat.reshape(n_samps, -1) * (
@@ -169,27 +173,22 @@ def fit_nonlinear_sage(data_cat, echo_times, mask):
     idx_X_I = X < echo_times[-1] / 2
     idx_X_II = X > echo_times[-1] / 2
 
-    def model(X, t2star, s0_I, t2, s0_II):
-        r2star = 1 / t2star
-        r2 = 1 / t2
-
+    def model(X, r2star, s0_I, r2, s0_II):
         res = np.zeros(X.shape)
 
         res[idx_X_I] = s0_I * np.exp(-1 * X[idx_X_I] * r2star)
         res[idx_X_II] = s0_II * np.exp(-1 * tese * (r2star - r2)) * np.exp(-1 * X[idx_X_II] * ((2 * r2) - r2star))
 
-        # res[~np.isfinite(res)] = 0
-
         return res
 
     fail_count = 0
-    for i_v in range(Y.shape[0]):
+    for i_v in range(n_samps):
         try:
             popt, _ = scipy.optimize.curve_fit(
                 model,
                 X,
                 Y[i_v, :],
-                p0=(t2star_map[i_v], s0_I_map[i_v], t2_map[i_v], s0_II_map[i_v]),
+                p0=(r2star_map[i_v], s0_I_map[i_v], r2_map[i_v], s0_II_map[i_v]),
                 bounds=(
                     (0, 0, 0, 0),
                     (np.inf, np.inf, np.inf, np.inf),
@@ -198,21 +197,27 @@ def fit_nonlinear_sage(data_cat, echo_times, mask):
                 xtol=1e-12,
                 max_nfev=10000,
             )
-            res_t2star_map[i_v] = popt[0]
+            res_t2star_map[i_v] = 1. / popt[0]
             res_s0_I_map[i_v] = popt[1]
-            res_t2_map[i_v] = popt[2]
+            res_t2_map[i_v] = 1. / popt[2]
             res_s0_II_map[i_v] = popt[3]
-            rmspe[i_v] = np.sqrt(np.sum(np.square(100 * (Y[i_v, :] - model(X, res_t2star_map[i_v], res_s0_I_map[i_v], res_t2_map[i_v], res_s0_II_map[i_v])) / Y[i_v, :])) / len(echo_times))
+            rmspe[i_v] = np.sqrt(np.mean(np.square((Y[i_v, :] - model(X, popt[0], popt[1], popt[2], popt[3])) / Y[i_v, :] * 100)))
         
         except (RuntimeError, ValueError):
-            # print(traceback.print_exc())
             fail_count += 1
+            # print(traceback.print_exc())
 
     if fail_count:
-        fail_percent = 100 * fail_count / Y.shape[0]
+        fail_percent = 100 * fail_count / n_samps
         print("fail_percent: ", fail_percent)
 
-    return res_t2star_map, res_s0_I_map, res_t2_map, res_s0_II_map, rmspe
+    # res_t2star_map[~np.isfinite(res_t2star_map)] = 0
+    # res_s0_I_map[~np.isfinite(res_s0_I_map)] = 0
+    # res_t2_map[~np.isfinite(res_t2_map)] = 0
+    # res_s0_II_map[~np.isfinite(res_s0_II_map)] = 0
+    # rmspe[~np.isfinite(rmspe)] = 0
+
+    return res_t2star_map, res_s0_I_map, res_t2_map, res_s0_I_map / res_s0_II_map, rmspe
 
 
 # def fit_decay_ts_sage(data, tes, mask, fittype):
