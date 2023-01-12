@@ -634,10 +634,14 @@ def _get_parser():
     return parser
 
 
-if __name__ == "__main__":
+def _main(argv=None):
     options = _get_parser().parse_args()
     kwargs = vars(options)
     n_threads = kwargs.pop("n_threads")
     n_threads = None if n_threads == -1 else n_threads
     with threadpool_limits(limits=n_threads, user_api=None):
         sage_workflow(**kwargs)
+
+
+if __name__ == "__main__":
+    _main()
