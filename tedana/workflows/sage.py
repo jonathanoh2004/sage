@@ -72,7 +72,6 @@ def sage_workflow(
 
     n_samps, n_echos, n_vols = catd.shape
 
-    # TODO: see how different masks work in the denoising section
     if mask is not None:
         # load provided mask
         mask = nilearn.image.load_img(mask).get_fdata().reshape(-1).astype(bool)
@@ -150,9 +149,7 @@ def sage_workflow(
         ########################################################################################
 
         # TODO: decide on which data cleaning procedures to use for computing maps
-        # TODO: validate nonlinear decay fitting
         # TODO: make both loglinear and nonlinear work with both 1 or >1 time points
-        # TODO: decide on how to do the bounds in nonlinear
 
         # If fitmode="all", each output map is over samples (S)
         # Else if fitmode="each", each output map is over samples and volumes (S x T)
@@ -179,9 +176,7 @@ def sage_workflow(
                 rmspe,
             ) = decay_sage.fit_decay_sage(catd, tes, mask.reshape(n_samps, 1), fittype)
         else:
-            raise ValueError(
-                "fittype must be either loglin or nonlin{3,4}"
-            )  # TODO: move this and related validation to top
+            raise ValueError("fittype must be either loglin or nonlin{3,4}")
 
         if s0_II_maps is None:
             s0_II_maps = s0_I_maps / delta_maps
@@ -191,13 +186,6 @@ def sage_workflow(
         ########################################################################################
         ####################### WRITE MAPS #####################################################
         ########################################################################################
-
-        # t2star_outputs_key = ' '.join(("t2star", "img"))
-        # t2_outputs_key = ' '.join(("t2", "img"))
-        # s0I_outputs_key = ' '.join(("s0I", "img"))
-        # s0II_outputs_key = ' '.join(("s0II", "img"))
-
-
 
         io_generator.save_file(s0_I_maps, output_keys["s0I"])
         if s0_II_maps is not None:
@@ -217,7 +205,6 @@ def sage_workflow(
         # TODO: check if changes are needed to optcom based on assumed model (i.e. 4 parameter fit with delta)
         # TODO: determine whether tese should be included in the weighting for T2-weighted
         # TODO: make work with single or varying numbers of time points
-        # TODO: decide on masking
 
         optcom_t2star, optcom_t2 = combine_sage.make_optcom_sage(
             catd, tes, t2star_maps, s0_I_maps, t2_maps, s0_II_maps, mask.reshape(n_samps, 1)

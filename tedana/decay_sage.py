@@ -1,7 +1,6 @@
 """
 Functions to estimate S0 and T2* from multi-echo data.
 """
-# import traceback
 import logging
 import multiprocessing
 from multiprocessing.shared_memory import SharedMemory
@@ -43,7 +42,6 @@ def _prep_shared_mem(mapping):
 
 
 def _start_and_join_procs(n_samps, n_echos, n_vols, dtype, fittype, kwargs):
-    # create process pool instead? may need to profile
     n_cpus = multiprocessing.cpu_count()
 
     procs = []
@@ -186,15 +184,19 @@ def fit_decay_sage(data, tes, mask, fittype):
             shr_mems_3param, arrs_shr_mem_3param = _prep_shared_mem(shr_mem_keys_3param)
 
             kwargs_shm_3param = {
-                key + postfix_kwargs_shm: (value.name if value is not None else None) for key, value in shr_mems_3param.items()
+                key + postfix_kwargs_shm: (value.name if value is not None else None)
+                for key, value in shr_mems_3param.items()
             }
-            kwargs_shm_3param.update({
-                "Y" + postfix_kwargs_shm: kwargs_shm["Y" + postfix_kwargs_shm],
-                "X" + postfix_kwargs_shm: kwargs_shm["X" + postfix_kwargs_shm],
-                "r2star_guess" + postfix_kwargs_shm: kwargs_shm["r2star_res" + postfix_kwargs_shm],
-                "s0_I_guess" + postfix_kwargs_shm: kwargs_shm["s0_I_res" + postfix_kwargs_shm],
-                "r2_guess" + postfix_kwargs_shm: kwargs_shm["r2_res" + postfix_kwargs_shm]
-            })
+            kwargs_shm_3param.update(
+                {
+                    "Y" + postfix_kwargs_shm: kwargs_shm["Y" + postfix_kwargs_shm],
+                    "X" + postfix_kwargs_shm: kwargs_shm["X" + postfix_kwargs_shm],
+                    "r2star_guess"
+                    + postfix_kwargs_shm: kwargs_shm["r2star_res" + postfix_kwargs_shm],
+                    "s0_I_guess" + postfix_kwargs_shm: kwargs_shm["s0_I_res" + postfix_kwargs_shm],
+                    "r2_guess" + postfix_kwargs_shm: kwargs_shm["r2_res" + postfix_kwargs_shm],
+                }
+            )
 
             # max_iter = niter3[1] if niter3 is not None else 10000
 
@@ -338,7 +340,6 @@ def _get_max_iter(fittype, arrs_shr_mem):
         return 10000
 
 
-
 def _get_guesses(i_v, i_t, arrs_shr_mem):
     if arrs_shr_mem["s0_II_guess"] is not None:
         return (
@@ -372,6 +373,7 @@ def _eval_model(i_v, i_t, X, arrs_shr_mem, model):
             arrs_shr_mem["r2_res"][i_v, i_t],
         )
 
+
 def _get_bounds(arrs_shr_mem):
     if arrs_shr_mem["s0_II_guess"] is not None:
         return (
@@ -383,7 +385,7 @@ def _get_bounds(arrs_shr_mem):
             (0.1, 0, 0.1),
             (10000, np.inf, 10000),
         )
-        
+
 
 def fit_nonlinear_sage(
     n_samps,
@@ -406,7 +408,7 @@ def fit_nonlinear_sage(
     s0_II_res_shr_name,
     rmspe_res_shr_name,
 ):
-    if (s0_II_guess_shr_name is not None and delta_shr_name is not None):
+    if s0_II_guess_shr_name is not None and delta_shr_name is not None:
         raise ValueError("at most one of s0_II and delta may be specified")
 
     shr_mems = {
@@ -484,7 +486,6 @@ def fit_nonlinear_sage(
 
             except (RuntimeError, ValueError):
                 fail_count += 1
-                # print(traceback.print_exc())
 
     if fail_count:
         fail_percent = 100 * fail_count / (n_samps * (t_end - t_start))
