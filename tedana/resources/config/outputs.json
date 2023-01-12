@@ -15,6 +15,10 @@
         "orig": "s0IIvG",
         "bidsv1.5.0": "S0II_Map"
     },
+    "delta img": {
+        "orig": "deltavG",
+        "bidsv1.5.0": "Delta_Map"
+    },
     "rmspe img": {
         "orig": "rmspevG",
         "bidsv1.5.0": "RMSPE_Map"

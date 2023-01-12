@@ -4,13 +4,13 @@ import numpy as np
 import pytest
 import nilearn
 
-from tedana import combine, io, decay, utils
+from tedana import combine_sage, decay_sage, io, utils
 from tedana.tests.utils_sage import get_test_data_path_sage
 
 
 @pytest.fixture(scope="module")
 def input_sage():
-    echo_times = np.array([7.9, 27., 58., 77., 96.]) / 1000
+    echo_times = np.array([7.9, 27.0, 58.0, 77.0, 96.0]) / 1000
     n_echos = len(echo_times)
     in_files = [
         os.path.join(
@@ -43,11 +43,15 @@ def exp_output_loglin():
     out_dir = "loglin"
     out_files = [
         os.path.join(get_test_data_path_sage(), out_dir, name)
-        for name in ["T2starmap_Loglin.nii.gz", "S0Imap_Loglin.nii.gz", "T2map_Loglin.nii.gz", "S0IImap_Loglin.nii.gz"]
+        for name in [
+            "T2starmap_Loglin.nii.gz",
+            "S0Imap_Loglin.nii.gz",
+            "T2map_Loglin.nii.gz",
+            "S0IImap_Loglin.nii.gz",
+        ]
     ]
     exp_t2star, exp_s0_I, exp_t2, exp_s0_II = (
-        nilearn.image.load_img(out_file).get_fdata()
-        for out_file in out_files
+        nilearn.image.load_img(out_file).get_fdata() for out_file in out_files
     )
 
     data_dict = {
@@ -67,8 +71,7 @@ def exp_output_nonlin():
         for name in ["RMSPE_NLSQ.nii.gz", "S0_NLSQ.nii.gz", "T2_NLSQ.nii.gz", "T2s_NLSQ.nii.gz"]
     ]
     exp_rmspe, exp_s0, exp_t2, exp_t2star = (
-        nilearn.image.load_img(out_file).get_fdata()
-        for out_file in out_files
+        nilearn.image.load_img(out_file).get_fdata() for out_file in out_files
     )
 
     data_dict = {
@@ -100,7 +103,7 @@ def test_decay_sage_loglin(input_sage, exp_output_loglin):
     exp_t2 = exp_t2.reshape(catd.shape[0], catd.shape[2])
     exp_s0_II = exp_s0_II.reshape(catd.shape[0], catd.shape[2])
 
-    t2star, s0_I, t2, delta, _ = decay.fit_decay_sage(catd, tes, mask, "loglin", "all")
+    t2star, s0_I, t2, delta, _ = decay_sage.fit_decay_sage(catd, tes, mask, "loglin", "all")
     s0_II = (1 / delta) * s0_I
 
     np.testing.assert_allclose(t2star, exp_t2star)
@@ -115,6 +118,7 @@ def test_decay_sage_loglin(input_sage, exp_output_loglin):
     # np.testing.assert_allclose(s0_I, exp_s0_I)
     # np.testing.assert_allclose(t2, exp_t2)
     # np.testing.assert_allclose(s0_II, exp_s0_II)
+
 
 def test_decay_sage_nonlin(input_sage, exp_output_nonlin):
     catd, tes, mask, fittypes, fitmodes = (
@@ -137,7 +141,7 @@ def test_decay_sage_nonlin(input_sage, exp_output_nonlin):
     exp_t2 = exp_t2.reshape(catd.shape[0], catd.shape[2])
     exp_t2star = exp_t2star.reshape(catd.shape[0], catd.shape[2])
 
-    t2star, s0_I, t2, delta, rmspe = decay.fit_decay_sage(catd, tes, mask, "nonlin", "each")
+    t2star, s0_I, t2, delta, rmspe = decay_sage.fit_decay_sage(catd, tes, mask, "nonlin", "each")
     # s0_II = (1 / delta) * s0_I
 
     np.testing.assert_allclose(rmspe, exp_rmspe)

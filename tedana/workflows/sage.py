@@ -9,8 +9,8 @@ import pandas as pd
 import nilearn.image
 from tedana import (
     __version__,
-    combine,
-    decay,
+    combine_sage,
+    decay_sage,
     io,
     utils,
     gscontrol as gsc,
@@ -25,6 +25,7 @@ from tedana.bibtex import get_description_references
 
 LGR = logging.getLogger("GENERAL")
 RepLGR = logging.getLogger("REPORT")
+
 
 def sage_workflow(
     data,
@@ -50,6 +51,7 @@ def sage_workflow(
     debug=False,
     quiet=False,
     tslice=None,
+    # niter3=None,
     mixm=None,
     ctab=None,
     manacc=None,
@@ -61,12 +63,12 @@ def sage_workflow(
         data = [data]
     if not isinstance(gscontrol, list):
         gscontrol = [gscontrol]
-    
+
     tes = np.array([float(te) for te in tes]) / 1000
     catd, ref_img = io.load_data(data, n_echos=len(tes))
 
     if tslice is not None:
-        catd = catd[:,:,tslice[0]:tslice[1]]
+        catd = catd[:, :, tslice[0] : tslice[1]]
 
     n_samps, n_echos, n_vols = catd.shape
 
@@ -85,15 +87,16 @@ def sage_workflow(
     ########################################################################################
     # used to get keys expected by io_generator.save_file() and outputs.json
     output_keys = {
-        "t2star": ' '.join(("t2star", "img")),
-        "t2": ' '.join(("t2", "img")),
-        "optcom_t2star": ' '.join(("optcom", "t2star", "img")),
-        "optcom_t2": ' '.join(("optcom", "t2", "img")),
-        "s0I": ' '.join(("s0I", "img")),
-        "s0II": ' '.join(("s0II", "img")),
-        "rmspe": ' '.join(("rmspe", "img")),
+        "t2star": " ".join(("t2star", "img")),
+        "t2": " ".join(("t2", "img")),
+        "optcom_t2star": " ".join(("optcom", "t2star", "img")),
+        "optcom_t2": " ".join(("optcom", "t2", "img")),
+        "s0I": " ".join(("s0I", "img")),
+        "s0II": " ".join(("s0II", "img")),
+        "delta": " ".join(("delta", "img")),
+        "rmspe": " ".join(("rmspe", "img")),
     }
-    rerun_keys = [ "t2star", "t2", "optcom_t2star", "optcom_t2" ]
+    rerun_keys = ["t2star", "t2", "optcom_t2star", "optcom_t2"]
 
     # set up output directory structure
     out_dir = os.path.abspath("outputs")
@@ -114,13 +117,20 @@ def sage_workflow(
 
     if rerun is not None:
         if os.path.isdir(rerun):
-            rerun_files = { k: os.path.join(rerun, sub_dir, prefix + io_generator.get_name(output_keys[k])) for k in rerun_keys }
-            
-            if not all([ os.path.isfile(rerun_file) for rerun_file in rerun_files.values() ]):
-                raise ValueError("When rerunning, all relevant files must be present: T2star, T2, Optcom_T2star, and Optcom_T2")
+            rerun_files = {
+                k: os.path.join(rerun, sub_dir, prefix + io_generator.get_name(output_keys[k]))
+                for k in rerun_keys
+            }
+
+            if not all([os.path.isfile(rerun_file) for rerun_file in rerun_files.values()]):
+                raise ValueError(
+                    "When rerunning, all relevant files must be present: T2star, T2, Optcom_T2star, and Optcom_T2"
+                )
 
         try:
-            rerun_imgs = { k: nilearn.image.load_img(rerun_files[k]).get_fdata() for k in rerun_files }
+            rerun_imgs = {
+                k: nilearn.image.load_img(rerun_files[k]).get_fdata() for k in rerun_files
+            }
 
         except Exception:
             print("Error loading rerun imgs. Imgs will be recomputed.")
@@ -146,16 +156,38 @@ def sage_workflow(
 
         # If fitmode="all", each output map is over samples (S)
         # Else if fitmode="each", each output map is over samples and volumes (S x T)
+
+        #### TODO: fit_decay_sage NEEDS MAJOR CLEAN-UP WITH PARAMS AND RETVALS!
+
         if fittype == "loglin":
-            t2star_maps, s0_I_maps, t2_maps, delta_maps, rmspe = decay.fit_decay_sage(catd, tes, mask.reshape(n_samps, 1), fittype, fitmode)
-            s0_II_maps = (1 / delta_maps) * s0_I_maps
-        elif fittype == "nonlin":
-            t2star_maps, s0_I_maps, t2_maps, s0_II_maps, rmspe = decay.fit_decay_sage(catd, tes, mask.reshape(n_samps, 1), fittype, fitmode)
+            (
+                t2star_maps,
+                s0_I_maps,
+                t2_maps,
+                s0_II_maps,
+                delta_maps,
+                rmspe,
+            ) = decay_sage.fit_decay_sage(catd, tes, mask.reshape(n_samps, 1), fittype)
+
+        elif fittype == "nonlin3" or fittype == "nonlin4":
+            (
+                t2star_maps,
+                s0_I_maps,
+                t2_maps,
+                s0_II_maps,
+                delta_maps,
+                rmspe,
+            ) = decay_sage.fit_decay_sage(catd, tes, mask.reshape(n_samps, 1), fittype)
         else:
-            raise ValueError("fittype must be either loglin or nonlin") # TODO: move this and related validation to top
+            raise ValueError(
+                "fittype must be either loglin or nonlin{3,4}"
+            )  # TODO: move this and related validation to top
+
+        if s0_II_maps is None:
+            s0_II_maps = s0_I_maps / delta_maps
 
         # s0_II_maps[~np.isfinite(s0_II_maps)] = 0
-        
+
         ########################################################################################
         ####################### WRITE MAPS #####################################################
         ########################################################################################
@@ -165,8 +197,13 @@ def sage_workflow(
         # s0I_outputs_key = ' '.join(("s0I", "img"))
         # s0II_outputs_key = ' '.join(("s0II", "img"))
 
+
+
         io_generator.save_file(s0_I_maps, output_keys["s0I"])
-        io_generator.save_file(s0_II_maps, output_keys["s0II"])
+        if s0_II_maps is not None:
+            io_generator.save_file(s0_II_maps, output_keys["s0II"])
+        if delta_maps is not None:
+            io_generator.save_file(delta_maps, output_keys["delta"])
         io_generator.save_file(t2star_maps, output_keys["t2star"])
         io_generator.save_file(t2_maps, output_keys["t2"])
         if rmspe is not None:
@@ -182,7 +219,7 @@ def sage_workflow(
         # TODO: make work with single or varying numbers of time points
         # TODO: decide on masking
 
-        optcom_t2star, optcom_t2 = combine.make_optcom_sage(
+        optcom_t2star, optcom_t2 = combine_sage.make_optcom_sage(
             catd, tes, t2star_maps, s0_I_maps, t2_maps, s0_II_maps, mask.reshape(n_samps, 1)
         )
 
@@ -216,7 +253,7 @@ def sage_workflow(
 
     for data_oc, data_oc_label in [(optcom_t2star, "optcom_t2star"), (optcom_t2, "optcom_t2")]:
         sub_dir_tedana = os.path.abspath(os.path.join(sub_dir, data_oc_label))
-        
+
         if not os.path.isdir(sub_dir_tedana):
             os.mkdir(sub_dir_tedana)
 
@@ -226,13 +263,13 @@ def sage_workflow(
         utils.setup_loggers(logname=None, repname=repname, quiet=quiet, debug=debug)
 
         io_generator = io.OutputGenerator(
-                ref_img,
-                convention=convention,
-                out_dir=sub_dir_tedana,
-                prefix=prefix,
-                config="auto",
-                verbose=verbose,
-            )
+            ref_img,
+            convention=convention,
+            out_dir=sub_dir_tedana,
+            prefix=prefix,
+            config="auto",
+            verbose=verbose,
+        )
 
         # regress out global signal unless explicitly not desired
         if "gsr" in gscontrol:
@@ -327,15 +364,14 @@ def sage_workflow(
 
         if comptable[comptable.classification == "accepted"].shape[0] == 0:
             print("No BOLD components detected! Please check data and results!")
-        
+
         mmix_orig = mmix.copy()
 
         if tedort:
             acc_idx = comptable.loc[
                 ~comptable.classification.str.contains("rejected")
             ].index.values
-            rej_idx = comptable.loc[comptable.classification.str.contains("rejected")
-            ].index.values
+            rej_idx = comptable.loc[comptable.classification.str.contains("rejected")].index.values
             acc_ts = mmix[:, acc_idx]
             rej_ts = mmix[:, rej_idx]
             betas = np.linalg.lstsq(acc_ts, rej_ts, rcond=None)[0]
@@ -366,9 +402,7 @@ def sage_workflow(
         )
 
         if "mir" in gscontrol:
-            gsc.minimum_image_regression(
-                data_oc, mmix, mask, comptable, io_generator
-            )
+            gsc.minimum_image_regression(data_oc, mmix, mask, comptable, io_generator)
 
         if verbose:
             io.writeresults_echoes(catd, mmix, mask, comptable, io_generator)
@@ -391,9 +425,7 @@ def sage_workflow(
         if not no_reports:
             print("Making figures folder with static component maps and timecourse plots.")
 
-            dn_ts, hikts, lowkts = io.denoise_ts(
-                data_oc, mmix, mask, comptable
-            )
+            dn_ts, hikts, lowkts = io.denoise_ts(data_oc, mmix, mask, comptable)
 
             reporting.static_figures.carpet_plot(
                 optcom_ts=data_oc,
@@ -482,7 +514,7 @@ def _get_parser():
         "--fittype",
         dest="fittype",
         action="store",
-        choices=["loglin", "nonlin"],
+        choices=["loglin", "nonlin3", "nonlin4"],
         help="Desired Fitting Method"
         '"loglin" means that a linear model is fit'
         " to the log of the data (default)"
@@ -575,6 +607,14 @@ def _get_parser():
         help=("Specify slice of the data in the fourth dimension"),
         default=None,
     )
+    # parser.add_argument(
+    #     "--niter3",
+    #     dest="niter3",
+    #     metavar="niter4:niter3",
+    #     type=lambda x: parser_utils.is_valid_slice(parser, x),
+    #     help=("Specify numbers of iterations for the 4-parameter and 3-parameter fits when running 3-parameter nonlinear fit. The 4-parameter fit should use a smaller number of iterations, and its result will be used in the 3-parameter fit"),
+    #     default=None,
+    # )
     parser.add_argument(
         "--mix",
         dest="mixm",

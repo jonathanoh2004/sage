@@ -1,7 +1,6 @@
 """
 Functions to estimate S0 and T2* from multi-echo data.
 """
-# import traceback
 import logging
 
 import numpy as np
@@ -10,256 +9,20 @@ from scipy import stats
 
 from tedana import utils
 
-
 LGR = logging.getLogger("GENERAL")
 RepLGR = logging.getLogger("REPORT")
-
-######################################################################################
-################################## SAGE TEDANA #######################################
-######################################################################################
-
-
-def fit_decay_sage(data, tes, mask, fittype, fitmode):
-    """
-    in a linear fitting, each voxel, time point is fitted separately
-    the result of a linear fitting are arrays of dimension (S x T)
-    in a nonlinear fitting, each voxel is fitted over all time points
-    the result of a nonlinear fitting are arrays of dimension (S)
-    """
-    if data.ndim != 3:
-        raise ValueError("Data should be of dimension (S x E x T)")
-    if data.shape[1] != len(tes):
-        raise ValueError(
-            "Second dimension of data ({0}) does not match number "
-            "of echoes provided (tes; {1})".format(data.shape[1], len(tes))
-        )
-    if len(tes) != 5:
-        raise ValueError("SAGE requires 5 echos for computing T2*, T2, S0_I, and S0_II maps")
-    if fittype not in ["loglin", "nonlin"]:
-        raise ValueError("Unknown fittype option: {}".format(fittype))
-    if mask.shape != (data.shape[0], 1):
-        raise ValueError("Shape of mask must match (data.shape[0], 1)")
-
-    fit_func = fit_loglinear_sage if fittype == "loglin" else fit_nonlinear_sage
-
-    if fitmode == "all":
-        t2star_maps, s0_I_maps, t2_maps, delta_maps = fit_func(data, tes, mask)
-        rmspe = None
-    elif fitmode == "each":
-        result_dim = (data.shape[0], data.shape[2])
-        t2star_maps = np.zeros(result_dim)
-        s0_I_maps = np.zeros(result_dim)
-        t2_maps = np.zeros(result_dim)
-        delta_maps = np.zeros(result_dim)
-        rmspe = np.zeros(result_dim)
-
-        for i_t in range(data.shape[2]):
-            t2star_maps[:, i_t], s0_I_maps[:, i_t], t2_maps[:, i_t], delta_maps[:, i_t], rmspe[:, i_t] = fit_func(
-                np.expand_dims(data[:, :, i_t], axis=2), tes, mask
-            )
-    else:
-        raise ValueError("invalid value for fitmode argument")
-
-    return t2star_maps, s0_I_maps, t2_maps, delta_maps, rmspe
-
-
-def fit_loglinear_sage(data_cat, echo_times, mask):
-    """
-    This function fits over each voxel independently (all time points)
-    """
-    n_samps, n_echos, n_vols = data_cat.shape
-    echo_times = np.array(echo_times).reshape(n_echos, 1)
-    tese = echo_times[-1, 0]
-
-    Y = data_cat.swapaxes(1, 2).reshape((n_samps * n_vols, -1)).T
-    Y = np.log(Y) * (np.repeat(mask, axis=0, repeats=n_vols).T)
-
-    # x_r2star = np.replace(echo_times.copy()  * -1)
-    # x_r2star[-1, 0] = 0
-
-    # x = np.column_stack([np.ones(n_echos), x_r2star])
-    # X = np.repeat(x, n_vols, axis=0)
-
-    # betas = np.linalg.lstsq(X, Y, rcond=None)[0]
-    # t2star_map = 1 / betas[1, :].T
-    # s0_I_map = np.exp(betas[0, :]).T
-
-    x_s0_I = np.ones(n_echos)
-    x_delta = np.array([0, 0, -1, -1, -1])
-    x_r2star = np.array(
-        [
-            -1 * echo_times[0, 0],
-            -1 * echo_times[1, 0],
-            echo_times[2, 0] - tese,
-            echo_times[3, 0] - tese,
-            0,
-        ]
-    )
-    x_r2 = np.array(
-        [0, 0, tese - (2 * echo_times[2, 0]), tese - (2 * echo_times[3, 0]), -1 * tese]
-    )
-
-    X = np.column_stack([x_s0_I, x_delta, x_r2star, x_r2])
-    # X = np.repeat(x, n_vols, axis=0)
-
-    Y[~np.isfinite(Y)] = 0
-
-    betas = np.linalg.lstsq(X, Y, rcond=None)[0]
-    # betas = scipy.linalg.lstsq(X, Y, cond=None, lapack_driver='gelsy')[0]
-
-    betas[~np.isfinite(betas)] = 0
-
-    s0_I_map = np.exp(betas[0, :]).T
-    delta_map = np.exp(betas[1, :]).T
-    t2star_map = 1 / betas[2, :].T
-    t2_map = 1 / betas[3, :].T
-
-    if n_vols > 1:
-        s0_I_map = s0_I_map.reshape(n_samps, n_vols)
-        delta_map = delta_map.reshape(n_samps, n_vols)
-        t2star_map = t2star_map.reshape(n_samps, n_vols)
-        t2_map = t2_map.reshape(n_samps, n_vols)
-
-    return t2star_map, s0_I_map, t2_map, delta_map
-
-
-def fit_nonlinear_sage(data_cat, echo_times, mask):
-    """
-    This function fits over each voxel independently (all time points)
-    """
-    n_samps, n_echos, n_vols = data_cat.shape
-    tese = echo_times[-1]
-
-    t2star_map, s0_I_map, t2_map, delta_map = fit_loglinear_sage(
-        data_cat, echo_times, mask
-    )
-
-    r2star_map = 1 / t2star_map
-    r2_map = 1 / t2_map
-    r2star_map[~np.isfinite(r2star_map)] = 20
-    r2_map[~np.isfinite(r2_map)] = 15
-    # t2star_map[~np.isfinite(t2star_map)] = 0.05
-    # t2_map[~np.isfinite(t2_map)] = 0.067
-    s0_I_map[~np.isfinite(s0_I_map)] = np.mean(s0_I_map[np.isfinite(s0_I_map)])
-    delta_map[np.logical_or(delta_map < -9, delta_map > 11, np.isnan(delta_map))] = 1
-    s0_II_map = s0_I_map / delta_map
-    s0_II_map[~np.isfinite(s0_II_map)] = np.mean(s0_II_map[np.isfinite(s0_II_map)])
-
-    # if t2star_map.ndim == 1:
-    #     t2star_map = t2star_map[:, np.newaxis]
-    #     s0_I_map = s0_I_map[:, np.newaxis]
-    #     t2_map = t2_map[:, np.newaxis]
-    #     delta_map = delta_map[:, np.newaxis]
-    # elif t2star_map.ndim != 2:
-    #     raise ValueError("Incorrect Dimensions of Maps")
-
-    if r2star_map.ndim == 2:
-        r2star_map = np.mean(r2star_map, axis=1)
-        s0_I_map = np.mean(s0_I_map, axis=1)
-        r2_map = np.mean(r2_map, axis=1)
-        s0_II_map = np.mean(s0_II_map, axis=1)
-
-    Y = data_cat.reshape(n_samps, -1) * (
-        np.repeat(mask, axis=1, repeats=(n_echos * n_vols))
-    )
-    X = np.repeat(echo_times, n_vols)
-
-    res_t2star_map = np.zeros((n_samps))
-    res_s0_I_map = np.zeros((n_samps))
-    res_t2_map = np.zeros((n_samps))
-    res_s0_II_map = np.zeros((n_samps))
-    rmspe = np.zeros((n_samps))
-
-    idx_X_I = X < echo_times[-1] / 2
-    idx_X_II = X > echo_times[-1] / 2
-
-    def model(X, r2star, s0_I, r2, s0_II):
-        res = np.zeros(X.shape)
-
-        res[idx_X_I] = s0_I * np.exp(-1 * X[idx_X_I] * r2star)
-        res[idx_X_II] = s0_II * np.exp(-1 * tese * (r2star - r2)) * np.exp(-1 * X[idx_X_II] * ((2 * r2) - r2star))
-
-        return res
-
-    fail_count = 0
-    for i_v in range(n_samps):
-        try:
-            popt, _ = scipy.optimize.curve_fit(
-                model,
-                X,
-                Y[i_v, :],
-                p0=(r2star_map[i_v], s0_I_map[i_v], r2_map[i_v], s0_II_map[i_v]),
-                bounds=(
-                    (0, 0, 0, 0),
-                    (np.inf, np.inf, np.inf, np.inf),
-                ),
-                ftol=1e-12,
-                xtol=1e-12,
-                max_nfev=10000,
-            )
-            res_t2star_map[i_v] = 1. / popt[0]
-            res_s0_I_map[i_v] = popt[1]
-            res_t2_map[i_v] = 1. / popt[2]
-            res_s0_II_map[i_v] = popt[3]
-            rmspe[i_v] = np.sqrt(np.mean(np.square((Y[i_v, :] - model(X, popt[0], popt[1], popt[2], popt[3])) / Y[i_v, :] * 100)))
-        
-        except (RuntimeError, ValueError):
-            fail_count += 1
-            # print(traceback.print_exc())
-
-    if fail_count:
-        fail_percent = 100 * fail_count / n_samps
-        print("fail_percent: ", fail_percent)
-
-    # res_t2star_map[~np.isfinite(res_t2star_map)] = 0
-    # res_s0_I_map[~np.isfinite(res_s0_I_map)] = 0
-    # res_t2_map[~np.isfinite(res_t2_map)] = 0
-    # res_s0_II_map[~np.isfinite(res_s0_II_map)] = 0
-    # rmspe[~np.isfinite(rmspe)] = 0
-
-    return res_t2star_map, res_s0_I_map, res_t2_map, res_s0_I_map / res_s0_II_map, rmspe
-
-
-# def fit_decay_ts_sage(data, tes, mask, fittype):
-#     n_samples, _, n_vols = data.shape
-#     tes = np.array(tes)
-
-#     t2star_map_vols = np.zeros([n_samples, n_vols])
-#     s0_I_map_vols = np.zeros([n_samples, n_vols])
-#     t2_map_vols = np.zeros([n_samples, n_vols])
-#     s0_II_map_vols = np.zeros([n_samples, n_vols])
-
-#     report = True
-#     for vol in range(n_vols):
-#         t2star_map, s0_I_map, t2_map, s0_II_map = fit_decay_sage(
-#             data[:, :, vol][:, :, None], tes, fittype, mask, report=report
-#         )
-#         t2star_map_vols[:, vol] = t2star_map
-#         s0_I_map_vols[:, vol] = s0_I_map
-#         t2_map_vols[:, vol] = t2_map
-#         s0_II_map_vols[:, vol] = s0_II_map
-#         report = False
-
-#     return t2star_map_vols, s0_I_map_vols, t2_map_vols, s0_II_map_vols
-
-
-######################################################################################
-################################ UTILITY FUNCTION ####################################
-######################################################################################
 
 
 def _apply_t2s_floor(t2s, echo_times):
     """
     Apply a floor to T2* values to prevent zero division errors during
     optimal combination.
-
     Parameters
     ----------
     t2s : (S,) array_like
         T2* estimates.
     echo_times : (E,) array_like
         Echo times in milliseconds.
-
     Returns
     -------
     t2s_corrected : (S,) array_like
@@ -290,15 +53,9 @@ def _apply_t2s_floor(t2s, echo_times):
     return t2s_corrected
 
 
-######################################################################################
-################################ ORIGINAL TEDANA #####################################
-######################################################################################
-
-
 def monoexponential(tes, s0, t2star):
     """
     Specifies a monoexponential model for use with scipy curve fitting
-
     Parameters
     ----------
     tes : (E,) :obj:`list`
@@ -307,7 +64,6 @@ def monoexponential(tes, s0, t2star):
         Initial signal parameter
     t2star : :obj:`float`
         T2* parameter
-
     Returns
     -------
     :obj:`float`
@@ -319,7 +75,6 @@ def monoexponential(tes, s0, t2star):
 def fit_monoexponential(data_cat, echo_times, adaptive_mask, report=True):
     """
     Fit monoexponential decay model with nonlinear curve-fitting.
-
     Parameters
     ----------
     data_cat : (S x E x T) :obj:`numpy.ndarray`
@@ -333,16 +88,13 @@ def fit_monoexponential(data_cat, echo_times, adaptive_mask, report=True):
         For more information on thresholding, see `make_adaptive_mask`.
     report : bool, optional
         Whether to log a description of this step or not. Default is True.
-
     Returns
     -------
     t2s_limited, s0_limited, t2s_full, s0_full : (S,) :obj:`numpy.ndarray`
         T2* and S0 estimate maps.
-
     Notes
     -----
     This method is slower, but more accurate, than the log-linear approach.
-
     See Also
     --------
     :func:`tedana.utils.make_adaptive_mask` : The function used to create the ``adaptive_mask``
@@ -437,14 +189,12 @@ def fit_monoexponential(data_cat, echo_times, adaptive_mask, report=True):
 
 def fit_loglinear(data_cat, echo_times, adaptive_mask, report=True):
     """Fit monoexponential decay model with log-linear regression.
-
     The monoexponential decay function is fitted to all values for a given
     voxel across TRs, per TE, to estimate voxel-wise :math:`S_0` and :math:`T_2^*`.
     At a given voxel, only those echoes with "good signal", as indicated by the
     value of the voxel in the adaptive mask, are used.
     Therefore, for a voxel with an adaptive mask value of five, the first five
     echoes would be used to estimate T2* and S0.
-
     Parameters
     ----------
     data_cat : (S x E x T) :obj:`numpy.ndarray`
@@ -458,12 +208,10 @@ def fit_loglinear(data_cat, echo_times, adaptive_mask, report=True):
         For more information on thresholding, see `make_adaptive_mask`.
     report : :obj:`bool`, optional
         Whether to log a description of this step or not. Default is True.
-
     Returns
     -------
     t2s_limited, s0_limited, t2s_full, s0_full: (S,) :obj:`numpy.ndarray`
         T2* and S0 estimate maps.
-
     Notes
     -----
     The approach used in this function involves transforming the raw signal values
@@ -472,7 +220,6 @@ def fit_loglinear(data_cat, echo_times, adaptive_mask, report=True):
     This results in two parameter estimates: one for the slope  and one for the intercept.
     The slope estimate is inverted (i.e., 1 / slope) to get  :math:`T_2^*`,
     while the intercept estimate is exponentiated (i.e., e^intercept) to get :math:`S_0`.
-
     This method is faster, but less accurate, than the nonlinear approach.
     """
     if report:
@@ -483,7 +230,7 @@ def fit_loglinear(data_cat, echo_times, adaptive_mask, report=True):
             "used to determine which echoes would be used to estimate T2* "
             "and S0."
         )
-    n_samp, _, n_vols = data_cat.shape  # MAKE _ FOR CLARITY
+    n_samp, n_echos, n_vols = data_cat.shape
 
     echos_to_run = np.unique(adaptive_mask)
     # When there is one good echo, use two
@@ -506,7 +253,7 @@ def fit_loglinear(data_cat, echo_times, adaptive_mask, report=True):
         # Create echo masks to assign values to limited vs full maps later
         echo_mask = np.squeeze(echo_masks[..., i_echo])
         echo_mask[adaptive_mask == echo_num] = True
-        # echo_masks[..., i_echo] = echo_mask # THIS LINE SHOULD BE REDUNDANT
+        echo_masks[..., i_echo] = echo_mask
 
         # perform log linear fit of echo times against MR signal
         # make DV matrix: samples x (time series * echos)
@@ -540,7 +287,6 @@ def fit_loglinear(data_cat, echo_times, adaptive_mask, report=True):
 def fit_decay(data, tes, mask, adaptive_mask, fittype, report=True):
     """
     Fit voxel-wise monoexponential decay models to `data`
-
     Parameters
     ----------
     data : (S x E [x T]) array_like
@@ -560,7 +306,6 @@ def fit_decay(data, tes, mask, adaptive_mask, fittype, report=True):
         The type of model fit to use
     report : bool, optional
         Whether to log a description of this step or not. Default is True.
-
     Returns
     -------
     t2s_limited : (S,) :obj:`numpy.ndarray`
@@ -577,7 +322,6 @@ def fit_decay(data, tes, mask, adaptive_mask, fittype, report=True):
         Full S0 map. For voxels affected by dropout, with good signal from
         only one echo, the full map uses the S0 estimate from the first two
         echoes.
-
     Notes
     -----
     This function replaces infinite values in the :math:`T_2^*` map with 500 and
@@ -585,7 +329,6 @@ def fit_decay(data, tes, mask, adaptive_mask, fittype, report=True):
     Additionally, very small :math:`T_2^*` values above zero are replaced with a floor
     value to prevent zero-division errors later on in the workflow.
     It also replaces NaN values in the :math:`S_0` map with 0.
-
     See Also
     --------
     :func:`tedana.utils.make_adaptive_mask` : The function used to create the ``adaptive_mask``
@@ -649,7 +392,6 @@ def fit_decay(data, tes, mask, adaptive_mask, fittype, report=True):
 def fit_decay_ts(data, tes, mask, adaptive_mask, fittype):
     """
     Fit voxel- and timepoint-wise monoexponential decay models to `data`
-
     Parameters
     ----------
     data : (S x E x T) array_like
@@ -667,7 +409,6 @@ def fit_decay_ts(data, tes, mask, adaptive_mask, fittype):
         For more information on thresholding, see `make_adaptive_mask`.
     fittype : :obj: `str`
         The type of model fit to use
-
     Returns
     -------
     t2s_limited_ts : (S x T) :obj:`numpy.ndarray`
@@ -684,7 +425,6 @@ def fit_decay_ts(data, tes, mask, adaptive_mask, fittype):
         Full S0 timeseries. For voxels affected by dropout, with good signal
         from only one echo, the full timeseries uses the single echo's value
         at that voxel/volume.
-
     See Also
     --------
     :func:`tedana.utils.make_adaptive_mask` : The function used to create the ``adaptive_mask``
