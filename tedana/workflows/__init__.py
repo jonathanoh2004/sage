@@ -7,6 +7,6 @@ from .t2star import t2smap_workflow
 # Overrides submodules with their functions.
 from .full import tedana_workflow
 
-from .sage import sage_workflow
+from .sage.sage import sage_workflow
 
 __all__ = ["tedana_workflow", "t2smap_workflow", "sage_workflow"]

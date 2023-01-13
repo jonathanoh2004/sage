@@ -4,8 +4,9 @@ import numpy as np
 import pytest
 import nilearn
 
-from tedana import combine_sage, decay_sage, io, utils
+from tedana import io, utils
 from tedana.tests.utils_sage import get_test_data_path_sage
+from tedana.workflows.sage import combine_sage, decay_sage
 
 
 @pytest.fixture(scope="module")

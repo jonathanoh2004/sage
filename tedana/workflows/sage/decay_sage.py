@@ -67,38 +67,60 @@ def _start_and_join_procs(n_samps, n_echos, n_vols, dtype, fittype, kwargs):
         proc.join()
 
 
+def fit_loglinear_sage(data, tes, mask):
+    n_samps, n_echos, n_vols = data.shape
+    dtype = data.dtype
+
+    n_samps, n_echos, n_vols = data.shape
+    tese = tes[-1]
+
+    Y = data.swapaxes(1, 2).reshape((n_samps * n_vols, -1)).T
+    Y = np.log(Y) * (np.repeat(mask, axis=0, repeats=n_vols).T)
+
+    x_s0_I = np.ones(n_echos)
+    x_delta = np.array([0, 0, -1, -1, -1])
+    x_r2star = np.array(
+        [
+            -1 * tes[0],
+            -1 * tes[1],
+            tes[2] - tese,
+            tes[3] - tese,
+            0,
+        ]
+    )
+    x_r2 = np.array([0, 0, tese - (2 * tes[2]), tese - (2 * tes[3]), -1 * tese])
+
+    X = np.column_stack([x_s0_I, x_delta, x_r2star, x_r2])
+
+    Y[~np.isfinite(Y)] = 0
+
+    betas = np.linalg.lstsq(X, Y, rcond=None)[0]
+
+    betas[~np.isfinite(betas)] = 0
+
+    s0_I_map = np.exp(betas[0, :]).T
+    delta_map = np.exp(betas[1, :]).T
+    s0_II_map = s0_I_map / delta_map
+    t2star_map = 1 / betas[2, :].T
+    t2_map = 1 / betas[3, :].T
+
+    if n_vols > 1:
+        s0_I_map = s0_I_map.reshape(n_samps, n_vols)
+        s0_II_map = s0_II_map.reshape(n_samps, n_vols)
+        delta_map = delta_map.reshape(n_samps, n_vols)
+        t2star_map = t2star_map.reshape(n_samps, n_vols)
+        t2_map = t2_map.reshape(n_samps, n_vols)
+
+    return t2star_map, s0_I_map, t2_map, s0_II_map, delta_map, None
+
+
 def fit_decay_sage(data, tes, mask, fittype):
-    """
-    in a linear fitting, each voxel, time point is fitted separately
-    the result of a linear fitting are arrays of dimension (S x T)
-    in a nonlinear fitting, each voxel is fitted over all time points
-    the result of a nonlinear fitting are arrays of dimension (S)
-    """
-    if data.ndim != 3:
-        raise ValueError("Data should be of dimension (S x E x T)")
-    if data.shape[1] != len(tes):
-        raise ValueError(
-            "Second dimension of data ({0}) does not match number "
-            "of echoes provided (tes; {1})".format(data.shape[1], len(tes))
-        )
-    if len(tes) != 5:
-        raise ValueError("SAGE requires 5 echos for computing T2*, T2, S0_I, and S0_II maps")
-    if fittype not in ["loglin", "nonlin3", "nonlin4"]:
-        raise ValueError("Unknown fittype option: {}".format(fittype))
-    if mask.shape != (data.shape[0], 1):
-        raise ValueError("Shape of mask must match (data.shape[0], 1)")
-    # if niter3 is None and fittype == "nonlin3":
-    #     raise ValueError("number of iterations (niter3) must be specified when running a 3-parameter fit (nonlin3)")
-    # if niter3 is not None and fittype != "nonlin3":
-    #     raise ValueError("number of iterations (niter3) must only be specified when running a 3-parameter fit (nonlin3)")
     n_samps, n_echos, n_vols = data.shape
     dtype = data.dtype
 
     if fittype == "loglin":
-        t2star_maps, s0_I_maps, t2_maps, delta_maps = fit_loglinear_sage(data, tes, mask)
-        s0_II_maps = (1 / delta_maps) * s0_I_maps
-        rmspe = None
-        return t2star_maps, s0_I_maps, t2_maps, s0_II_maps, delta_maps, rmspe
+        fit_loglinear_sage(data, tes, mask)
+
     elif fittype == "nonlin4" or fittype == "nonlin3":
         r2star_res = np.zeros((n_samps, n_vols))
         s0_I_res = np.zeros((n_samps, n_vols))
@@ -106,8 +128,7 @@ def fit_decay_sage(data, tes, mask, fittype):
         s0_II_res = np.zeros((n_samps, n_vols))
         rmspe_res = np.zeros((n_samps, n_vols))
 
-        ##### GET GUESSES #####
-        t2star_guess, s0_I_guess, t2_guess, delta_guess = fit_loglinear_sage(data, tes, mask)
+        t2star_guess, s0_I_guess, t2_guess, _, delta_guess, _ = fit_loglinear_sage(data, tes, mask)
         r2star_guess = 1 / t2star_guess
         r2_guess = 1 / t2_guess
         r2star_guess[~np.isfinite(r2star_guess)] = 20
@@ -198,8 +219,6 @@ def fit_decay_sage(data, tes, mask, fittype):
                 }
             )
 
-            # max_iter = niter3[1] if niter3 is not None else 10000
-
             _start_and_join_procs(Y.shape[0], n_echos, n_vols, dtype, fittype, kwargs_shm_3param)
 
             r2star_res = utils.unmask(arrs_shr_mem_3param["r2star_res"], mask).copy()
@@ -241,60 +260,6 @@ def fit_loglinear_sage(data_cat, echo_times, mask):
     """
     This function fits over each voxel independently (all time points)
     """
-    n_samps, n_echos, n_vols = data_cat.shape
-    echo_times = np.array(echo_times).reshape(n_echos, 1)
-    tese = echo_times[-1, 0]
-
-    Y = data_cat.swapaxes(1, 2).reshape((n_samps * n_vols, -1)).T
-    Y = np.log(Y) * (np.repeat(mask, axis=0, repeats=n_vols).T)
-
-    # x_r2star = np.replace(echo_times.copy()  * -1)
-    # x_r2star[-1, 0] = 0
-
-    # x = np.column_stack([np.ones(n_echos), x_r2star])
-    # X = np.repeat(x, n_vols, axis=0)
-
-    # betas = np.linalg.lstsq(X, Y, rcond=None)[0]
-    # t2star_map = 1 / betas[1, :].T
-    # s0_I_map = np.exp(betas[0, :]).T
-
-    x_s0_I = np.ones(n_echos)
-    x_delta = np.array([0, 0, -1, -1, -1])
-    x_r2star = np.array(
-        [
-            -1 * echo_times[0, 0],
-            -1 * echo_times[1, 0],
-            echo_times[2, 0] - tese,
-            echo_times[3, 0] - tese,
-            0,
-        ]
-    )
-    x_r2 = np.array(
-        [0, 0, tese - (2 * echo_times[2, 0]), tese - (2 * echo_times[3, 0]), -1 * tese]
-    )
-
-    X = np.column_stack([x_s0_I, x_delta, x_r2star, x_r2])
-    # X = np.repeat(x, n_vols, axis=0)
-
-    Y[~np.isfinite(Y)] = 0
-
-    betas = np.linalg.lstsq(X, Y, rcond=None)[0]
-    # betas = scipy.linalg.lstsq(X, Y, cond=None, lapack_driver='gelsy')[0]
-
-    betas[~np.isfinite(betas)] = 0
-
-    s0_I_map = np.exp(betas[0, :]).T
-    delta_map = np.exp(betas[1, :]).T
-    t2star_map = 1 / betas[2, :].T
-    t2_map = 1 / betas[3, :].T
-
-    if n_vols > 1:
-        s0_I_map = s0_I_map.reshape(n_samps, n_vols)
-        delta_map = delta_map.reshape(n_samps, n_vols)
-        t2star_map = t2star_map.reshape(n_samps, n_vols)
-        t2_map = t2_map.reshape(n_samps, n_vols)
-
-    return t2star_map, s0_I_map, t2_map, delta_map
 
 
 def _get_model(i_v, i_t, delta=None):

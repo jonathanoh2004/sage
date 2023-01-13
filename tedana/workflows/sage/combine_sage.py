@@ -35,9 +35,6 @@ def make_optcom_sage(data, tes, t2star_map, s0_I_map, t2_map, s0_II_map, mask):
     ):
         raise ValueError("Shapes of maps must conform to (S x T)")
 
-    # w_t2star_I, w_t2_I = weights_sage_I(tes, t2star_map, s0_I_map)
-    # w_t2star_II, w_t2_II = weights_sage_II(tes, t2star_map, t2_map, s0_II_map)
-
     w_t2star, w_t2 = weights_sage(tes, t2star_map, s0_I_map, t2_map, s0_II_map)
 
     assert w_t2star.ndim == w_t2.ndim
@@ -93,18 +90,6 @@ def weights_sage(tes, t2star_map, s0_I_map, t2_map, s0_II_map):
     tes_indexed_II = tes[:, idx_II, :]
     tese_repeated_II = np.repeat(tese, np.sum(idx_II))[np.newaxis, :, np.newaxis]
 
-    # if maps_ndim == 1:
-    #     tes_indexed_I = tes[:, idx_I]
-    #     tes_indexed_II = tes[:, idx_II]
-    #     tese_repeated_II = np.repeat(tese, np.sum(idx_II))[np.newaxis, :]
-    # elif maps_ndim == 2:
-    #     tes = np.expand_dims(tes, axis=2)
-    #     tes_indexed_I = tes[:, idx_I, :]
-    #     tes_indexed_II = tes[:, idx_II, :]
-    #     tese_repeated_II = np.repeat(tese, np.sum(idx_II))[np.newaxis, :, np.newaxis]
-    # else:
-    #     raise ValueError("Maps are of invalid shape")
-
     w_t2star = np.zeros((s0_I_map.shape[0], tes.size, s0_I_map.shape[s0_I_map.ndim - 1]))
     w_t2 = np.zeros((s0_I_map.shape[0], tes.size, s0_I_map.shape[s0_I_map.ndim - 1]))
 
@@ -126,18 +111,7 @@ def weights_sage(tes, t2star_map, s0_I_map, t2_map, s0_II_map):
     w_t2[:, idx_I, :] = w_t2_I
     w_t2[:, idx_II, :] = w_t2_II
 
-    # If all values across echos are 0, set to 1 to avoid
-    # divide-by-zero errors
-    # w_t2star_II[np.where(np.all(w_t2star_II == 0, axis=echo_axis)), :] = 1
-    # w_t2_II[np.where(np.all(w_t2_II == 0, axis=echo_axis)), :] = 1
-    # w_t2star_I[np.where(np.all(w_t2star_I == 0, axis=echo_axis)), :] = 1
-
-    # normalize
-    # w_t2.mean() was -1.945989
-    # w_t2star.mean() was -1.6607357
     w_t2star = w_t2star / np.expand_dims(np.sum(w_t2star, axis=echo_axis), axis=echo_axis)
     w_t2 = w_t2 / np.expand_dims(np.sum(w_t2, axis=echo_axis), axis=echo_axis)
-    # w_t2star_II = w_t2star_II / np.expand_dims(np.sum(w_t2star_II, axis=echo_axis), axis=echo_axis)
-    # w_t2_II = w_t2_II / np.expand_dims(np.sum(w_t2_II, axis=echo_axis), axis=echo_axis)
 
     return w_t2star, w_t2
