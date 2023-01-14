@@ -6,6 +6,18 @@ import numpy as np
 from tedana import io
 
 
+''' Maybe use introspection here and perhaps elsewhere so we can always get the parameter names '''
+def save_maps(t2star_maps, s0_I_maps, t2_maps, delta_maps, s0_II_maps, rmspe, io_generator):
+    io_generator.save_file(s0_I_maps, get_output_key("s0I"))
+    if s0_II_maps is not None:
+        io_generator.save_file(s0_II_maps, get_output_key("s0II"))
+    if delta_maps is not None:
+        io_generator.save_file(delta_maps, get_output_key("delta"))
+    io_generator.save_file(t2star_maps, get_output_key("t2star"))
+    io_generator.save_file(t2_maps, get_output_key("t2"))
+    if rmspe is not None:
+        io_generator.save_file(rmspe, get_output_key("rmspe"))
+
 def get_echo_times(tes):
     return np.array([float(te) for te in tes]) / 1000
 

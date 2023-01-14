@@ -26,7 +26,7 @@ RepLGR = logging.getLogger("REPORT")
 def sage_workflow(
     data,
     tes,
-    out_dir,
+    out_dir="outputs",
     mask=None,
     convention="bids",
     prefix="",
@@ -47,7 +47,6 @@ def sage_workflow(
     debug=False,
     quiet=False,
     tslice=None,
-    # niter3=None,
     mixm=None,
     ctab=None,
     manacc=None,
@@ -64,13 +63,21 @@ def sage_workflow(
     def get_n_vols(data):
         return data.shape[2]
 
+    def get_fit_func(fittype):
+        if fittype == "loglin":
+            return get_maps_loglinear
+        elif fittype == "nonlin3":
+            return get_maps_nonlinear_3param
+        elif fittype == "nonlin4":
+            return get_maps_nonlinear_4param
+
     tes = io_sage.get_echo_times(tes)
     data, ref_img = io_sage.get_data(data, tes)
     gscontrol = io_sage.get_gscontrol(gscontrol)
     n_samps, n_echos, n_vols = get_n_samps(data), get_n_echos(data), get_n_vols(data)
     mask = io_sage.get_mask(mask, data)
 
-    sub_dir = io_sage.gen_subdir(["outputs", "_".join((fittype, fitmode))])
+    sub_dir = io_sage.gen_subdir([out_dir, "_".join((fittype, fitmode))])
 
     io_generator = io.OutputGenerator(
         ref_img,
@@ -86,50 +93,23 @@ def sage_workflow(
             rerun, sub_dir, prefix, io_generator
         )
     else:
-
-        def get_maps(fittype):
-            if fittype == "loglin":
-                (
-                    t2star_maps,
-                    s0_I_maps,
-                    t2_maps,
-                    s0_II_maps,
-                    delta_maps,
-                    rmspe,
-                ) = decay_sage.fit_decay_sage(data, tes, mask.reshape(n_samps, 1), fittype)
-
-            elif fittype == "nonlin3" or fittype == "nonlin4":
-                (
-                    t2star_maps,
-                    s0_I_maps,
-                    t2_maps,
-                    s0_II_maps,
-                    delta_maps,
-                    rmspe,
-                ) = decay_sage.fit_decay_sage(data, tes, mask.reshape(n_samps, 1), fittype)
-            else:
-                raise ValueError("fittype must be either loglin or nonlin{3,4}")
-
-        t2star_maps, s0_I_maps, t2_maps, s0_II_maps, delta_maps, rmspe = get_maps(
-            data, tes, mask, fittype
-        )
-
-        if s0_II_maps is None:
-            s0_II_maps = s0_I_maps / delta_maps
+        fit_func = get_fit_func(fittype)
+        (
+            t2star_maps,
+            s0_I_maps,
+            t2_maps,
+            s0_II_maps,
+            delta_maps,
+            rmspe,
+        ) = fit_func(data, tes, mask.reshape(n_samps, 1))
 
         ########################################################################################
         ####################### WRITE MAPS #####################################################
         ########################################################################################
 
-        io_generator.save_file(s0_I_maps, io_sage.get_output_key("s0I"))
-        if s0_II_maps is not None:
-            io_generator.save_file(s0_II_maps, io_sage.get_output_key("s0II"))
-        if delta_maps is not None:
-            io_generator.save_file(delta_maps, io_sage.get_output_key("delta"))
-        io_generator.save_file(t2star_maps, io_sage.get_output_key("t2star"))
-        io_generator.save_file(t2_maps, io_sage.get_output_key("t2"))
-        if rmspe is not None:
-            io_generator.save_file(rmspe, io_sage.get_output_key("rmspe"))
+        io_sage.save_maps(
+            t2star_maps, s0_I_maps, t2_maps, delta_maps, s0_II_maps, rmspe, io_generator
+        )
 
         ########################################################################################
         ####################### COMPUTE OPTIMAL COMBINATIONS ###################################
@@ -138,6 +118,8 @@ def sage_workflow(
         optcom_t2star, optcom_t2 = combine_sage.make_optcom_sage(
             data, tes, t2star_maps, s0_I_maps, t2_maps, s0_II_maps, mask.reshape(n_samps, 1)
         )
+
+        io_sage.save_optcoms()
 
     ########################################################################################
     ####################### TEDANA DENOISING ###############################################
