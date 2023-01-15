@@ -1,38 +1,11 @@
 import numpy as np
+import concurrency_sage
+import config_sage
+import nonlinear_sage
+import utils_sage
 
 
-def _get_shr_mem_keys(
-    mask,
-    Y,
-    X,
-    r2star_guess,
-    s0_I_guess,
-    r2_guess,
-    s0_II_guess,
-    r2star_res,
-    s0_I_res,
-    r2_res,
-    s0_II_res,
-    rmspe_res,
-):
-    shr_mem_keys = {
-        "Y": Y,
-        "X": X,
-        "r2star_guess": r2star_guess[mask, :],
-        "s0_I_guess": s0_I_guess[mask, :],
-        "r2_guess": r2_guess[mask, :],
-        "s0_II_guess": s0_II_guess[mask, :],
-        "delta": None,
-        "r2star_res": r2star_res[mask, :],
-        "s0_I_res": s0_I_res[mask, :],
-        "r2_res": r2_res[mask, :],
-        "s0_II_res": s0_II_res[mask, :],
-        "rmspe_res": rmspe_res[mask, :],
-    }
-    return shr_mem_keys
-
-
-def _get_model(i_v, i_t):
+def _get_model():
     def _four_param(X, r2star, s0_I, r2, s0_II):
         res = np.zeros(X.shape)
 
@@ -70,17 +43,24 @@ def _eval_model(i_v, i_t, X, arrs_shr_mem, model):
     )
 
 
-def _get_bounds(arrs_shr_mem):
+def _get_bounds():
     return (
         (0.1, 0, 0.1, 0),
         (10000, np.inf, 10000, np.inf),
     )
 
 
-def fit_nonlinear_4param():
-    r2star_res, s0_I_res, r2_res, s0_II_res, rmspe_res = _init_maps()
+def get_maps_nonlinear_4param(data, tes, mask):
+    n_samps, n_echos, n_vols = (
+        config_sage.get_n_samps(data),
+        config_sage.get_n_echos(data),
+        config_sage.get_n_vols(data),
+    )
+    r2star_res, s0_I_res, r2_res, s0_II_res, rmspe_res = nonlinear_sage.init_maps(n_samps, n_vols)
 
-    t2star_guess, s0_I_guess, t2_guess, _, delta_guess, _ = get_guesses(data, tes, mask)
+    r2star_guess, s0_I_guess, r2_guess, s0_II_guess, _ = nonlinear_sage.get_guesses(
+        data, tes, mask
+    )
 
     mask = mask.reshape(mask.shape[0])
 
@@ -88,26 +68,40 @@ def fit_nonlinear_4param():
     X = tes
 
     # these must match the function signature of fit_nonlinear_sage
-    shr_mem_keys = _get_shr_mem_keys(
-        mask,
-        Y,
-        X,
-        r2star_guess,
-        s0_I_guess,
-        r2_guess,
-        s0_II_guess,
-        r2star_res,
-        s0_I_res,
-        r2_res,
-        s0_II_res,
-        rmspe_res,
+    shr_mem_keys = dict(
+        zip(
+            config_sage.get_nonlinear_keys(),
+            [
+                Y,
+                X,
+                r2star_guess[mask, :],
+                s0_I_guess[mask, :],
+                r2_guess[mask, :],
+                s0_II_guess[mask, :],
+                None,
+                r2star_res[mask, :],
+                s0_I_res[mask, :],
+                r2_res[mask, :],
+                s0_II_res[mask, :],
+                rmspe_res[mask, :],
+            ],
+        )
     )
 
-    shr_mems, arrs_shr_mem = _prep_shared_mem(shr_mem_keys)
+    shr_mems, arrs_shr_mem = concurrency_sage.prep_shared_mem(shr_mem_keys)
 
     kwargs = {key: (value.name if value is not None else None) for key, value in shr_mems.items()}
 
-    _start_and_join_procs(Y.shape[0], n_echos, n_vols, dtype, fittype, kwargs)
+    dim_iter = config_sage.get_dim_vols()
+    shape = data.shape
+    func = nonlinear_sage.get_fit_nonlinear_sage(
+        _get_model, _get_max_iter, _get_guesses, _eval_model, _get_bounds
+    )
+    args = (Y.shape[0], n_echos, n_vols, data.dtype)
+
+    procs = concurrency_sage.get_procs(shape, dim_iter, func, args, kwargs)
+    concurrency_sage.start_procs(procs)
+    concurrency_sage.join_procs(procs)
 
     r2star_res, s0_I_res, r2_res, s0_II_res, delta, rmspe_res = utils_sage._unmask_and_copy(
         arrs_shr_mem, mask

@@ -17,7 +17,7 @@ from tedana import (
 )
 from tedana.stats import computefeats2
 from tedana.bibtex import get_description_references
-from tedana.workflows.sage import combine_sage, decay_sage, io_sage
+from tedana.workflows.sage import combine_sage, decay_sage, io_sage, config_sage
 
 LGR = logging.getLogger("GENERAL")
 RepLGR = logging.getLogger("REPORT")
@@ -54,93 +54,78 @@ def sage_workflow(
     ########################################################################################
     ####################### RETRIEVE AND PREP DATA #########################################
     ########################################################################################
-    def get_n_samps(data):
-        return data.shape[0]
-
-    def get_n_echos(data):
-        return data.shape[1]
-
-    def get_n_vols(data):
-        return data.shape[2]
-
-    def get_fit_func(fittype):
-        if fittype == "loglin":
-            return get_maps_loglinear
-        elif fittype == "nonlin3":
-            return get_maps_nonlinear_3param
-        elif fittype == "nonlin4":
-            return get_maps_nonlinear_4param
 
     tes = io_sage.get_echo_times(tes)
-    data, ref_img = io_sage.get_data(data, tes)
+
+    data, ref_img = io_sage.get_data(data, tes, tslice)
+
     gscontrol = io_sage.get_gscontrol(gscontrol)
-    n_samps, n_echos, n_vols = get_n_samps(data), get_n_echos(data), get_n_vols(data)
+
+    n_samps, n_echos, n_vols = (
+        config_sage.get_n_samps(data),
+        config_sage.get_n_echos(data),
+        config_sage.get_n_vols(data),
+    )
+
     mask = io_sage.get_mask(mask, data)
 
-    sub_dir = io_sage.gen_subdir([out_dir, "_".join((fittype, fitmode))])
+    sub_dir = io_sage.gen_sub_dirs([out_dir, config_sage.get_sub_dir(fittype)])
 
-    io_generator = io.OutputGenerator(
-        ref_img,
+    io_generator = io_sage.get_io_generator(
+        ref_img=ref_img,
         convention=convention,
         out_dir=sub_dir,
         prefix=prefix,
-        config="auto",
         verbose=verbose,
     )
 
+    ########################################################################################
+    ##################################### MAPS #############################################
+    ########################################################################################
+
     if rerun is not None:
-        t2star_maps, t2_maps, optcom_t2star, optcom_t2 = io_sage.get_rerun_maps(
-            rerun, sub_dir, prefix, io_generator
-        )
+        rerun_imgs = io_sage.get_rerun_maps(rerun, sub_dir, prefix, io_generator)
+        maps_t2star = rerun_imgs["t2star"].reshape(n_samps, n_vols)
+        maps_t2 = rerun_imgs["t2"].reshape(n_samps, n_vols)
+        optcom_t2star = rerun_imgs["optcom_t2star"].reshape(n_samps, n_vols)
+        optcom_t2 = rerun_imgs["optcom_t2"].reshape(n_samps, n_vols)
+
     else:
-        fit_func = get_fit_func(fittype)
+        fit_func = config_sage.get_maps_func(fittype)
         (
-            t2star_maps,
-            s0_I_maps,
-            t2_maps,
-            s0_II_maps,
-            delta_maps,
-            rmspe,
+            maps_t2star,
+            maps_s0_I,
+            maps_t2,
+            maps_s0_II,
+            maps_delta,
+            maps_rmspe,
         ) = fit_func(data, tes, mask.reshape(n_samps, 1))
 
-        ########################################################################################
-        ####################### WRITE MAPS #####################################################
-        ########################################################################################
-
         io_sage.save_maps(
-            t2star_maps, s0_I_maps, t2_maps, delta_maps, s0_II_maps, rmspe, io_generator
+            [maps_t2star, maps_s0_I, maps_t2, maps_s0_II, maps_delta, maps_rmspe],
+            config_sage.get_maps_keys(),
+            io_generator,
         )
 
         ########################################################################################
-        ####################### COMPUTE OPTIMAL COMBINATIONS ###################################
+        ############################ OPTIMAL COMBINATIONS ######################################
         ########################################################################################
 
         optcom_t2star, optcom_t2 = combine_sage.make_optcom_sage(
-            data, tes, t2star_maps, s0_I_maps, t2_maps, s0_II_maps, mask.reshape(n_samps, 1)
+            data, tes, maps_t2star, maps_s0_I, maps_t2, maps_s0_II, mask.reshape(n_samps, 1)
         )
 
-        io_sage.save_optcoms()
+        io_sage.save_maps([optcom_t2star, optcom_t2], config_sage.get_optcoms_keys(), io_generator)
 
     ########################################################################################
     ####################### TEDANA DENOISING ###############################################
     ########################################################################################
-    required_metrics = [
-        "kappa",
-        "rho",
-        "countnoise",
-        "countsigFT2",
-        "countsigFS0",
-        "dice_FT2",
-        "dice_FS0",
-        "signal-noise_t",
-        "variance explained",
-        "normalized variance explained",
-        "d_table_score",
-    ]
+    required_metrics = config_sage.get_required_metrics()
+    output_keys = config_sage.get_output_keys()
 
     data_orig = data.copy()
 
-    for data_oc, data_oc_label in [(optcom_t2star, "optcom_t2star"), (optcom_t2, "optcom_t2")]:
+    for data_oc, data_oc_label in zip([optcom_t2star, optcom_t2], config_sage.get_optcoms_keys()):
         sub_dir_tedana = os.path.abspath(os.path.join(sub_dir, data_oc_label))
 
         if not os.path.isdir(sub_dir_tedana):

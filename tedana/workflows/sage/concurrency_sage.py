@@ -1,10 +1,9 @@
-def _prep_shared_mem(mapping):
-    """
-    Takes in numpy arrays and corresponding keys
-    Outputs one dictionary mapping from keys to shared memory names
-    as well as a second dictionary mapping from keys to numpy arrays
-    referring to same underlying memory
-    """
+import multiprocessing
+from multiprocessing.shared_memory import SharedMemory
+import numpy as np
+
+
+def prep_shared_mem(mapping):
     if not isinstance(mapping, dict):
         raise ValueError("input must be a dictionary mapping from names to shared memory objects")
     shr_mems, arrs_shr_mem = {}, {}
@@ -22,27 +21,35 @@ def _prep_shared_mem(mapping):
     return shr_mems, arrs_shr_mem
 
 
-def _start_and_join_procs(n_samps, n_echos, n_vols, dtype, fittype, kwargs):
+def start_procs(procs):
+    for proc in procs:
+        proc.start()
+
+
+def join_procs(procs):
+    for proc in procs:
+        proc.join()
+
+
+def get_procs(shape, dim_iter, func, args, kwargs):
     n_cpus = multiprocessing.cpu_count()
 
     procs = []
-    n_tasks_per_cpu = max(n_vols // n_cpus, 1)
+    n_iters = shape[dim_iter]
+    n_tasks_per_cpu = max(n_iters // n_cpus, 1)
 
     i_cpu, t_start, t_end = 0, 0, 0
-    while i_cpu < n_cpus and t_end < n_vols:
-        if i_cpu + 1 >= n_cpus or t_start + n_tasks_per_cpu > n_vols:
-            t_end = n_vols
+    while i_cpu < n_cpus and t_end < n_iters:
+        if i_cpu + 1 >= n_cpus or t_start + n_tasks_per_cpu > n_iters:
+            t_end = n_iters
         else:
             t_end = t_start + n_tasks_per_cpu
+        args.extend(t_start, t_end)
         proc = multiprocessing.Process(
-            target=fit_nonlinear_sage,
-            args=(n_samps, n_echos, n_vols, dtype, t_start, t_end, fittype),
+            target=func,
+            args=args,
             kwargs=kwargs,
         )
         procs.append(proc)
-        proc.start()
         t_start = t_end
         i_cpu += 1
-
-    for proc in procs:
-        proc.join()
