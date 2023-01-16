@@ -1,5 +1,5 @@
 import numpy as np
-from multiprocessing.shared_memory import SharedMemory
+import concurrency_sage
 import config_sage
 import loglinear_sage
 from scipy.optimize import curve_fit
@@ -28,16 +28,18 @@ def get_normalized_delta(arrs_shr_mem_4param):
     return delta
 
 
-def init_maps(n_samps, n_vols):
-    r2star_res = np.zeros((n_samps, n_vols))
-    s0_I_res = np.zeros((n_samps, n_vols))
-    r2_res = np.zeros((n_samps, n_vols))
-    s0_II_res = np.zeros((n_samps, n_vols))
-    rmspe_res = np.zeros((n_samps, n_vols))
+def init_maps(shape):
+    r2star_res = np.zeros(shape)
+    s0_I_res = np.zeros(shape)
+    r2_res = np.zeros(shape)
+    s0_II_res = np.zeros(shape)
+    rmspe_res = np.zeros(shape)
     return r2star_res, s0_I_res, r2_res, s0_II_res, rmspe_res
 
 
-def get_fit_nonlinear_sage(model_func, max_iter_func, guesses_func, eval_model_func, bounds_func):
+def get_fit_nonlinear_sage(
+    n_param, model_func, max_iter_func, guesses_func, eval_model_func, bounds_func
+):
     _get_model = model_func
     _get_max_iter = max_iter_func
     _get_guesses = guesses_func
@@ -51,75 +53,61 @@ def get_fit_nonlinear_sage(model_func, max_iter_func, guesses_func, eval_model_f
         dtype,
         t_start,
         t_end,
-        X_shr_name,
-        Y_shr_name,
-        r2star_guess_shr_name,
-        s0_I_guess_shr_name,
-        r2_guess_shr_name,
-        s0_II_guess_shr_name,
-        delta_shr_name,
-        r2star_res_shr_name,
-        s0_I_res_shr_name,
-        r2_res_shr_name,
-        s0_II_res_shr_name,
-        rmspe_res_shr_name,
+        X,
+        Y,
+        r2star_guess,
+        s0_I_guess,
+        r2_guess,
+        s0_II_guess,
+        delta,
+        r2star_res,
+        s0_I_res,
+        r2_res,
+        s0_II_res,
+        rmspe_res,
     ):
-        if s0_II_guess_shr_name is not None and delta_shr_name is not None:
-            raise ValueError("at most one of s0_II and delta may be specified")
-
-        shr_mems = {
-            "X": X_shr_name,
-            "Y": Y_shr_name,
-            "r2star_guess": r2star_guess_shr_name,
-            "s0_I_guess": s0_I_guess_shr_name,
-            "r2_guess": r2_guess_shr_name,
-            "s0_II_guess": s0_II_guess_shr_name,
-            "delta": delta_shr_name,
-            "r2star_res": r2star_res_shr_name,
-            "s0_I_res": s0_I_res_shr_name,
-            "r2_res": r2_res_shr_name,
-            "s0_II_res": s0_II_res_shr_name,
-            "rmspe_res": rmspe_res_shr_name,
+        shr_mem_X = {
+            "X": X,
         }
-        arrs_shr_mem = {}
-
-        for key in shr_mems:
-            if shr_mems[key] is not None:
-                shr_mems[key] = SharedMemory(name=shr_mems[key])
-
-        X = np.ndarray(
-            (n_echos),
-            dtype=dtype,
-            buffer=shr_mems["X"].buf,
+        shr_mem_Y = {
+            "Y": Y,
+        }
+        shr_mems = {
+            "r2star_guess": r2star_guess,
+            "s0_I_guess": s0_I_guess,
+            "r2_guess": r2_guess,
+            "s0_II_guess": s0_II_guess,
+            "delta": delta,
+            "r2star_res": r2star_res,
+            "s0_I_res": s0_I_res,
+            "r2_res": r2_res,
+            "s0_II_res": s0_II_res,
+            "rmspe_res": rmspe_res,
+        }
+        shr_mem_X, arr_shr_mem_X = concurrency_sage.prep_shared_mem_with_name(
+            shr_mem_X, (n_echos,), dtype
         )
-        Y = np.ndarray(
-            (n_samps, n_echos, n_vols),
-            dtype=dtype,
-            buffer=shr_mems["Y"].buf,
+        shr_mem_Y, arr_shr_mem_Y = concurrency_sage.prep_shared_mem_with_name(
+            shr_mem_Y, (n_samps, n_echos, n_vols), dtype
         )
-        for key in shr_mems:
-            if shr_mems[key] is None:
-                arrs_shr_mem[key] = None
-            else:
-                if key != "X" and key != "Y":
-                    arrs_shr_mem[key] = np.ndarray(
-                        (n_samps, n_vols),
-                        dtype=dtype,
-                        buffer=shr_mems[key].buf,
-                    )
+        X = arr_shr_mem_X["X"]
+        Y = arr_shr_mem_Y["Y"]
+        shr_mems, arrs_shr_mem = concurrency_sage.prep_shared_mem_with_name(
+            shr_mems, (n_samps, n_vols), dtype
+        )
 
         fail_count = 0
-        bounds = _get_bounds(arrs_shr_mem)
-        max_iter = _get_max_iter(arrs_shr_mem)
+        bounds = _get_bounds(n_param, arrs_shr_mem)
+        max_iter = _get_max_iter(n_param, arrs_shr_mem)
         for i_v in range(n_samps):
             for i_t in range(t_start, t_end):
                 try:
-                    model = _get_model(i_v, i_t, arrs_shr_mem["delta"])
+                    model = _get_model(n_param, i_v, i_t, arrs_shr_mem["delta"])
                     popt, _ = curve_fit(
                         model,
                         X,
                         Y[i_v, :, i_t],
-                        p0=_get_guesses(i_v, i_t, arrs_shr_mem),
+                        p0=_get_guesses(n_param, i_v, i_t, arrs_shr_mem),
                         bounds=bounds,
                         ftol=1e-12,
                         xtol=1e-12,
@@ -133,7 +121,10 @@ def get_fit_nonlinear_sage(model_func, max_iter_func, guesses_func, eval_model_f
                     arrs_shr_mem["rmspe_res"][i_v, i_t] = np.sqrt(
                         np.mean(
                             np.square(
-                                (Y[i_v, :, i_t] - _eval_model(i_v, i_t, X, arrs_shr_mem, model))
+                                (
+                                    Y[i_v, :, i_t]
+                                    - _eval_model(n_param, i_v, i_t, X, arrs_shr_mem, model)
+                                )
                                 / Y[i_v, :, i_t]
                                 * 100
                             )
@@ -147,8 +138,8 @@ def get_fit_nonlinear_sage(model_func, max_iter_func, guesses_func, eval_model_f
             fail_percent = 100 * fail_count / (n_samps * (t_end - t_start))
             print("fail_percent: ", fail_percent)
 
-        for shr_mem in shr_mems.values():
-            if shr_mem is not None:
-                shr_mem.close()
+        concurrency_sage.close_shr_mem(shr_mem_X)
+        concurrency_sage.close_shr_mem(shr_mem_Y)
+        concurrency_sage.close_shr_mem(shr_mems)
 
     return fit_nonlinear_sage

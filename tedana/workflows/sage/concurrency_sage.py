@@ -3,9 +3,7 @@ from multiprocessing.shared_memory import SharedMemory
 import numpy as np
 
 
-def prep_shared_mem(mapping):
-    if not isinstance(mapping, dict):
-        raise ValueError("input must be a dictionary mapping from names to shared memory objects")
+def prep_shared_mem_with_arr(mapping):
     shr_mems, arrs_shr_mem = {}, {}
 
     for (key, arr) in mapping.items():
@@ -21,6 +19,29 @@ def prep_shared_mem(mapping):
     return shr_mems, arrs_shr_mem
 
 
+def prep_shared_mem_with_name(mapping, shape, dtype):
+    shr_mems, arrs_shr_mem = {}, {}
+
+    for (key, name) in mapping.items():
+        if name is not None:
+            shm = SharedMemory(name=name)
+            shr_mems[key] = shm
+        else:
+            shr_mems[key] = None
+
+    for key in shr_mems:
+        if shr_mems[key] is None:
+            arrs_shr_mem[key] = None
+        else:
+            arrs_shr_mem[key] = np.ndarray(
+                shape=shape,
+                dtype=dtype,
+                buffer=shr_mems[key].buf,
+            )
+
+    return shr_mems, arrs_shr_mem
+
+
 def start_procs(procs):
     for proc in procs:
         proc.start()
@@ -29,6 +50,19 @@ def start_procs(procs):
 def join_procs(procs):
     for proc in procs:
         proc.join()
+
+
+def close_shr_mem(mapping):
+    for shr_mem in mapping.values():
+        if shr_mem is not None:
+            shr_mem.close()
+
+
+def close_and_unlink_shr_mem(mapping):
+    for shr_mem in mapping.values():
+        if shr_mem is not None:
+            shr_mem.close()
+            shr_mem.unlink()
 
 
 def get_procs(shape, dim_iter, func, args, kwargs):

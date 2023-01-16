@@ -5,7 +5,7 @@ def chain(funcs, args, kwargs):
     pass
 
 
-def _unmask_and_copy(arrs_shr_mem, mask):
+def unmask_and_copy(arrs_shr_mem, mask):
     res = []
     for key in arrs_shr_mem:
         res.append(utils.unmask(arrs_shr_mem[key], mask).copy())

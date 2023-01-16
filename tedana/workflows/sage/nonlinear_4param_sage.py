@@ -5,7 +5,7 @@ import nonlinear_sage
 import utils_sage
 
 
-def _get_model():
+def _get_model(n_param, i_v, i_t, delta):
     def _four_param(X, r2star, s0_I, r2, s0_II):
         res = np.zeros(X.shape)
 
@@ -20,11 +20,11 @@ def _get_model():
     return _four_param
 
 
-def _get_max_iter():
+def _get_max_iter(n_param):
     return 10000
 
 
-def _get_guesses(i_v, i_t, arrs_shr_mem):
+def _get_guesses(n_param, i_v, i_t, arrs_shr_mem):
     return (
         arrs_shr_mem["r2star_guess"][i_v, i_t],
         arrs_shr_mem["s0_I_guess"][i_v, i_t],
@@ -33,7 +33,7 @@ def _get_guesses(i_v, i_t, arrs_shr_mem):
     )
 
 
-def _eval_model(i_v, i_t, X, arrs_shr_mem, model):
+def _eval_model(n_param, i_v, i_t, X, arrs_shr_mem, model):
     return model(
         X,
         arrs_shr_mem["r2star_res"][i_v, i_t],
@@ -43,7 +43,7 @@ def _eval_model(i_v, i_t, X, arrs_shr_mem, model):
     )
 
 
-def _get_bounds():
+def _get_bounds(n_param):
     return (
         (0.1, 0, 0.1, 0),
         (10000, np.inf, 10000, np.inf),
@@ -56,7 +56,9 @@ def get_maps_nonlinear_4param(data, tes, mask):
         config_sage.get_n_echos(data),
         config_sage.get_n_vols(data),
     )
-    r2star_res, s0_I_res, r2_res, s0_II_res, rmspe_res = nonlinear_sage.init_maps(n_samps, n_vols)
+    r2star_res, s0_I_res, r2_res, s0_II_res, rmspe_res = nonlinear_sage.init_maps(
+        (n_samps, n_vols)
+    )
 
     r2star_guess, s0_I_guess, r2_guess, s0_II_guess, _ = nonlinear_sage.get_guesses(
         data, tes, mask
@@ -88,14 +90,15 @@ def get_maps_nonlinear_4param(data, tes, mask):
         )
     )
 
-    shr_mems, arrs_shr_mem = concurrency_sage.prep_shared_mem(shr_mem_keys)
+    shr_mems, arrs_shr_mem = concurrency_sage.prep_shared_mem_with_arr(shr_mem_keys)
 
     kwargs = {key: (value.name if value is not None else None) for key, value in shr_mems.items()}
 
     dim_iter = config_sage.get_dim_vols()
     shape = data.shape
+    n_param = 4
     func = nonlinear_sage.get_fit_nonlinear_sage(
-        _get_model, _get_max_iter, _get_guesses, _eval_model, _get_bounds
+        n_param, _get_model, _get_max_iter, _get_guesses, _eval_model, _get_bounds
     )
     args = (Y.shape[0], n_echos, n_vols, data.dtype)
 
@@ -103,14 +106,11 @@ def get_maps_nonlinear_4param(data, tes, mask):
     concurrency_sage.start_procs(procs)
     concurrency_sage.join_procs(procs)
 
-    r2star_res, s0_I_res, r2_res, s0_II_res, delta, rmspe_res = utils_sage._unmask_and_copy(
+    r2star_res, s0_I_res, r2_res, s0_II_res, delta, rmspe_res = utils_sage.unmask_and_copy(
         arrs_shr_mem, mask
     )
 
-    for shm in shr_mems.values():
-        if shm is not None:
-            shm.close()
-            shm.unlink()
+    concurrency_sage.close_and_unlink_shr_mem(shr_mems)
 
     t2star_res = 1 / r2star_res
     t2_res = 1 / r2_res
