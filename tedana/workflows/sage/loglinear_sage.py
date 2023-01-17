@@ -2,7 +2,7 @@ import numpy as np
 import config_sage
 
 
-def get_maps_loglinear(data, tes, mask):
+def get_maps_loglinear(data, tes, mask, n_procs):
     n_samps, n_vols = (
         config_sage.get_n_samps(data),
         config_sage.get_n_vols(data),

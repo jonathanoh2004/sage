@@ -1,6 +1,13 @@
 import logging
 from threadpoolctl import threadpool_limits
-from tedana.workflows.sage import combine_sage, io_sage, config_sage, denoise_sage
+from tedana.workflows.sage import (
+    combine_sage,
+    io_sage,
+    config_sage,
+    denoise_sage,
+    utils_sage,
+    cmdline_sage,
+)
 
 LGR = logging.getLogger("GENERAL")
 RepLGR = logging.getLogger("REPORT")
@@ -61,7 +68,7 @@ def sage_workflow(cmdline_args):
             maps_s0_II,
             maps_delta,
             maps_rmspe,
-        ) = fit_func(data, tes, mask.reshape(n_samps, 1))
+        ) = fit_func(data, tes, mask.reshape(n_samps, 1), cmdline_args.n_procs)
 
         io_sage.save_maps(
             [maps_t2star, maps_s0_I, maps_t2, maps_s0_II, maps_delta, maps_rmspe],
@@ -90,7 +97,7 @@ def sage_workflow(cmdline_args):
         repname = config_sage.get_repname(sub_dir_tedana)
         bibtex_file = config_sage.get_bibtex_file(sub_dir_tedana)
 
-        io_sage.setup_loggers(repname, cmdline_args.quiet, cmdline_args.debug)
+        utils_sage.setup_loggers(repname, cmdline_args.quiet, cmdline_args.debug)
 
         io_generator = io_sage.get_io_generator(
             ref_img,
@@ -119,11 +126,11 @@ def sage_workflow(cmdline_args):
             cmdline_args,
         )
 
-        io_sage.teardown_loggers()
+        utils_sage.teardown_loggers()
 
 
 def _main(argv=None):
-    cmdline_args = io_sage.Cmdline_Args.parse_args()
+    cmdline_args = cmdline_sage.Cmdline_Args.parse_args()
     n_threads = None if cmdline_args.n_threads == -1 else cmdline_args.n_threads
     with threadpool_limits(limits=n_threads, user_api=None):
         sage_workflow(cmdline_args)

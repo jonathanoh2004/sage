@@ -1,4 +1,4 @@
-from tedana import utils
+import tedana.utils
 
 
 def chain(funcs, args, kwargs):
@@ -8,8 +8,16 @@ def chain(funcs, args, kwargs):
 def unmask_and_copy(arrs_shr_mem, mask):
     res = []
     for key in arrs_shr_mem:
-        res.append(utils.unmask(arrs_shr_mem[key], mask).copy())
+        res.append(tedana.utils.unmask(arrs_shr_mem[key], mask).copy())
     return res
+
+
+def setup_loggers(repname, quiet, debug):
+    tedana.utils.setup_loggers(logname=None, repname=repname, quiet=quiet, debug=debug)
+
+
+def teardown_loggers():
+    tedana.utils.teardown_loggers()
 
 
 """ SCRAP

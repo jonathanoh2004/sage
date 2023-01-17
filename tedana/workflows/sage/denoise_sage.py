@@ -13,24 +13,6 @@ import tedana.utils
 import config_sage
 
 
-"""
-# Create an adaptive mask with at least 1 good echo, for denoising
-    mask_denoise, masksum_denoise = utils.make_adaptive_mask(
-        catd,
-        mask=mask,
-        getsum=True,
-        threshold=1,
-    )
-    LGR.debug("Retaining {}/{} samples for denoising".format(mask_denoise.sum(), n_samp))
-    io_generator.save_file(masksum_denoise, "adaptive mask img")
-
-    # Create an adaptive mask with at least 3 good echoes, for classification
-    masksum_clf = masksum_denoise.copy()
-    masksum_clf[masksum_clf < 3] = 0
-    mask_clf = masksum_clf.astype(bool)
-"""
-
-
 def denoise(
     data_oc,
     data_oc_label,
@@ -279,3 +261,21 @@ def denoise(
         else:
             print("Generating dynamic report")
             tedana.reporting.generate_report(io_generator, tr=img_t_r)
+
+
+"""
+# Create an adaptive mask with at least 1 good echo, for denoising
+    mask_denoise, masksum_denoise = utils.make_adaptive_mask(
+        catd,
+        mask=mask,
+        getsum=True,
+        threshold=1,
+    )
+    LGR.debug("Retaining {}/{} samples for denoising".format(mask_denoise.sum(), n_samp))
+    io_generator.save_file(masksum_denoise, "adaptive mask img")
+
+    # Create an adaptive mask with at least 3 good echoes, for classification
+    masksum_clf = masksum_denoise.copy()
+    masksum_clf[masksum_clf < 3] = 0
+    mask_clf = masksum_clf.astype(bool)
+"""

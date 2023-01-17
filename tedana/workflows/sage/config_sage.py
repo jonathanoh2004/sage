@@ -4,18 +4,6 @@ from combine_sage import make_optcom_sage
 import tedana.bibtex
 
 
-def get_repname(sub_dir_tedana):
-    return os.path.join(sub_dir_tedana, "report.txt")
-
-
-def get_description_references(report):
-    return tedana.bibtex.get_description_references(report)
-
-
-def get_bibtex_file(sub_dir_tedana):
-    return os.path.join(sub_dir_tedana, "references.bib")
-
-
 def get_n_samps(data):
     return data.shape[0]
 
@@ -114,3 +102,15 @@ def get_maps_func(fittype):
 
 def get_sub_dir(fittype):
     return fittype
+
+
+def get_repname(sub_dir_tedana):
+    return os.path.join(sub_dir_tedana, "report.txt")
+
+
+def get_description_references(report):
+    return tedana.bibtex.get_description_references(report)
+
+
+def get_bibtex_file(sub_dir_tedana):
+    return os.path.join(sub_dir_tedana, "references.bib")

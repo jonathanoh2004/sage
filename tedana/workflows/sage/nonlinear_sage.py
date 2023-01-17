@@ -1,13 +1,12 @@
 import numpy as np
 import concurrency_sage
-import config_sage
 import loglinear_sage
 from scipy.optimize import curve_fit
 
 
-def get_guesses(data, tes, mask):
+def get_normalized_guesses(data, tes, mask):
     t2star_guess, s0_I_guess, t2_guess, _, delta_guess, _ = loglinear_sage.get_maps_loglinear(
-        data, tes, mask
+        data, tes, mask, -1
     )
     r2star_guess = 1 / t2star_guess
     r2_guess = 1 / t2_guess
@@ -21,8 +20,8 @@ def get_guesses(data, tes, mask):
     return r2star_guess, s0_I_guess, r2_guess, s0_II_guess, delta_guess
 
 
-def get_normalized_delta(arrs_shr_mem_4param):
-    delta = np.divide(arrs_shr_mem_4param["s0_I_res"], arrs_shr_mem_4param["s0_II_res"])
+def get_normalized_delta(s0_I, s0_II):
+    delta = np.divide(s0_I, s0_II)
     delta[np.logical_or(delta < -9, delta > 11)] = 1
     delta[np.isnan(delta)] = 1
     return delta

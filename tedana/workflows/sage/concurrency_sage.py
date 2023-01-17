@@ -42,6 +42,31 @@ def prep_shared_mem_with_name(mapping, shape, dtype):
     return shr_mems, arrs_shr_mem
 
 
+def get_procs(shape, dim_iter, func, n_procs, args, kwargs):
+    n_cpus = multiprocessing.cpu_count()
+    n_cpus = n_procs if n_procs > 0 and n_procs < n_cpus else n_cpus
+
+    procs = []
+    n_iters = shape[dim_iter]
+    n_tasks_per_cpu = max(n_iters // n_cpus, 1)
+
+    i_cpu, t_start, t_end = 0, 0, 0
+    while i_cpu < n_cpus and t_end < n_iters:
+        if i_cpu + 1 >= n_cpus or t_start + n_tasks_per_cpu > n_iters:
+            t_end = n_iters
+        else:
+            t_end = t_start + n_tasks_per_cpu
+        args.extend(t_start, t_end)
+        proc = multiprocessing.Process(
+            target=func,
+            args=args,
+            kwargs=kwargs,
+        )
+        procs.append(proc)
+        t_start = t_end
+        i_cpu += 1
+
+
 def start_procs(procs):
     for proc in procs:
         proc.start()
@@ -63,27 +88,3 @@ def close_and_unlink_shr_mem(mapping):
         if shr_mem is not None:
             shr_mem.close()
             shr_mem.unlink()
-
-
-def get_procs(shape, dim_iter, func, args, kwargs):
-    n_cpus = multiprocessing.cpu_count()
-
-    procs = []
-    n_iters = shape[dim_iter]
-    n_tasks_per_cpu = max(n_iters // n_cpus, 1)
-
-    i_cpu, t_start, t_end = 0, 0, 0
-    while i_cpu < n_cpus and t_end < n_iters:
-        if i_cpu + 1 >= n_cpus or t_start + n_tasks_per_cpu > n_iters:
-            t_end = n_iters
-        else:
-            t_end = t_start + n_tasks_per_cpu
-        args.extend(t_start, t_end)
-        proc = multiprocessing.Process(
-            target=func,
-            args=args,
-            kwargs=kwargs,
-        )
-        procs.append(proc)
-        t_start = t_end
-        i_cpu += 1
