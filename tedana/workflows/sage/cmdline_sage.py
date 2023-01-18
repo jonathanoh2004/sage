@@ -1,6 +1,6 @@
 import argparse
-import parser_utils_sage
 import tedana.workflows.parser_utils
+from tedana.workflows.sage import parser_utils_sage
 
 
 class Cmdline_Args:
@@ -12,7 +12,7 @@ class Cmdline_Args:
 
     def __init__(
         self,
-        data_file_names,
+        data_files_names,
         echo_times,
         out_dir="outputs",
         mask_file_name=None,
@@ -31,17 +31,17 @@ class Cmdline_Args:
         png_cmap="coolwarm",
         low_mem=False,
         verbose=False,
-        rerun_maps=None,
-        debug=False,
-        quiet=False,
-        tslice=None,
+        rerun_maps_dir=None,
         rerun_mixm=None,
+        debug=None,
+        quiet=None,
+        tslice=None,
         ctab=None,
         manacc=None,
-        n_threads=-1,
+        n_threads=1,
         n_procs=-1,
     ):
-        self.data_file_names = data_file_names
+        self.data_files_names = data_files_names
         self.echo_times = echo_times
         self.out_dir = out_dir
         self.mask_file_name = mask_file_name
@@ -60,7 +60,7 @@ class Cmdline_Args:
         self.png_cmap = png_cmap
         self.low_mem = low_mem
         self.verbose = verbose
-        self.rerun_maps = rerun_maps
+        self.rerun_maps_dir = rerun_maps_dir
         self.rerun_mixm = rerun_mixm
         self.debug = debug
         self.quiet = quiet
@@ -76,7 +76,7 @@ class Cmdline_Args:
         required = parser.add_argument_group("Required Arguments")
         required.add_argument(
             "-d",
-            dest="data_file_names",
+            dest="data_files_names",
             nargs="+",
             metavar="FILE",
             type=lambda x: tedana.workflows.parser_utils.is_valid_file(parser, x),
@@ -100,7 +100,7 @@ class Cmdline_Args:
         )
         parser.add_argument(
             "--mask",
-            dest="mask_file_names",
+            dest="mask_file_name",
             metavar="FILE",
             type=lambda x: tedana.workflows.parser_utils.is_valid_file(parser, x),
             help=(
@@ -112,7 +112,7 @@ class Cmdline_Args:
         )
         parser.add_argument(
             "--fittype",
-            dest="fit_type",
+            dest="fittype",
             action="store",
             choices=["loglin", "nonlin3", "nonlin4"],
             help="Desired Fitting Method"
@@ -125,7 +125,7 @@ class Cmdline_Args:
         )
         parser.add_argument(
             "--fitmode",
-            dest="fit_mode",
+            dest="fitmode",
             action="store",
             choices=["all", "each"],
             help=(
@@ -139,7 +139,7 @@ class Cmdline_Args:
         )
         parser.add_argument(
             "--combmode",
-            dest="comb_mode",
+            dest="combmode",
             action="store",
             choices=["t2s", "paid"],
             help=("Combination scheme for TEs: t2s (Posse 1999, default), paid (Poser)"),
@@ -185,10 +185,11 @@ class Cmdline_Args:
             action="store",
             help=(
                 "Number of cpu cores to use in nonlinear fitting."
-                "If -1 or 0 greater than the number of cores, then "
-                "the number of cores found will be used."
+                "If this value is -1 or 0 or greater than the "
+                "number of cores, then the number of cores found "
+                "will be used."
             ),
-            default=1,
+            default=-1,
         )
         parser.add_argument(
             "--debug", dest="debug", help=argparse.SUPPRESS, action="store_true", default=False

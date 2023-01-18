@@ -4,7 +4,7 @@ import numpy as np
 import nilearn.image
 import tedana.io
 import tedana.utils
-import config_sage
+from tedana.workflows.sage import config_sage
 
 
 def get_echo_times(tes):

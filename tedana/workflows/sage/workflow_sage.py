@@ -21,7 +21,7 @@ def sage_workflow(cmdline_args):
     tes = io_sage.get_echo_times(cmdline_args.echo_times)
 
     data, ref_img = io_sage.get_data(
-        cmdline_args.data_file_names, cmdline_args.echo_times, cmdline_args.tslice
+        cmdline_args.data_files_names, tes, cmdline_args.tslice
     )
 
     gscontrol = io_sage.get_gscontrol(cmdline_args.gscontrol)
@@ -50,9 +50,9 @@ def sage_workflow(cmdline_args):
     ##################################### MAPS #############################################
     ########################################################################################
 
-    if cmdline_args.rerun_maps is not None:
+    if cmdline_args.rerun_maps_dir is not None:
         rerun_imgs = io_sage.get_rerun_maps(
-            cmdline_args.rerun_maps, sub_dir, cmdline_args.prefix, io_generator
+            cmdline_args.rerun_maps_dir, sub_dir, cmdline_args.prefix, io_generator
         )
         maps_t2star = rerun_imgs["t2star"].reshape(n_samps, n_vols)
         maps_t2 = rerun_imgs["t2"].reshape(n_samps, n_vols)
@@ -83,8 +83,6 @@ def sage_workflow(cmdline_args):
         optcom_t2star, optcom_t2 = combine_sage.make_optcom_sage(
             data, tes, maps_t2star, maps_s0_I, maps_t2, maps_s0_II, mask.reshape(n_samps, 1)
         )
-
-        io_sage.save_maps([optcom_t2star, optcom_t2], config_sage.get_optcoms_keys(), io_generator)
 
     ########################################################################################
     ####################### TEDANA DENOISING ###############################################

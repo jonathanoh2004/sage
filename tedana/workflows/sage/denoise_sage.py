@@ -10,7 +10,10 @@ import tedana.reporting
 import tedana.io
 import tedana.stats
 import tedana.utils
-import config_sage
+from tedana.workflows.sage import (
+    config_sage,
+    io_sage
+)
 
 
 def denoise(
@@ -29,7 +32,6 @@ def denoise(
 ):
 
     required_metrics = config_sage.get_required_metrics()
-    output_keys = config_sage.get_output_keys()
 
     data_orig = data.copy()
     n_echos = config_sage.get_n_echos(data)
@@ -39,10 +41,7 @@ def denoise(
     if "gsr" in gscontrol:
         data, data_oc = tedana.gscontrol.gscontrol_raw(data_orig, data_oc, n_echos, io_generator)
 
-    io_generator.save_file(data_oc, output_keys[data_oc_label])
-
-    # masksum = np.tile([n_echos], n_samps)
-    masksum = mask * n_echos
+    io_sage.save_maps([data_oc], [data_oc_label], io_generator)
 
     if mixm is None:
 

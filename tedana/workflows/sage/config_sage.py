@@ -1,7 +1,13 @@
-import nonlinear_3param_sage, nonlinear_4param_sage, nonlinear_sage, loglinear_sage
 import os.path
-from combine_sage import make_optcom_sage
 import tedana.bibtex
+from tedana.workflows.sage import (
+    nonlinear_3param_sage,
+    nonlinear_4param_sage,
+    nonlinear_sage,
+    loglinear_sage
+)
+from tedana.workflows.sage.combine_sage import make_optcom_sage
+
 
 
 def get_n_samps(data):
@@ -25,7 +31,7 @@ def get_maps_keys():
 
 
 def get_optcoms_keys():
-    return ["optcom_t2star", "optcom_t2"]
+    return ["optcom t2star", "optcom t2"]
 
 
 def get_required_metrics():
@@ -47,7 +53,7 @@ def get_required_metrics():
 def get_output_keys():
     output_keys = {
         key: " ".join((key, "img"))
-        for key in ["t2star", "t2", "optcom_t2star", "optcom_t2", "s0I", "s0II", "delta", "rmspe"]
+        for key in ["t2star", "t2", "optcom t2star", "optcom t2", "s0I", "s0II", "delta", "rmspe"]
     }
     return output_keys
 

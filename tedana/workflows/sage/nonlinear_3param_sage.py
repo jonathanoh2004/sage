@@ -1,9 +1,10 @@
 import numpy as np
-import config_sage
-import concurrency_sage
-import nonlinear_sage
-import utils_sage
-
+from tedana.workflows.sage import (
+    config_sage,
+    concurrency_sage,
+    nonlinear_sage,
+    utils_sage
+)
 
 def get_maps_nonlinear_3param(data, tes, mask, n_procs):
     n_samps, n_echos, n_vols = (

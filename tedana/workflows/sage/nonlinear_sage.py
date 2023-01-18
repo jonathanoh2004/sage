@@ -1,8 +1,9 @@
 import numpy as np
-import concurrency_sage
-import loglinear_sage
 from scipy.optimize import curve_fit
-
+from tedana.workflows.sage import (
+    concurrency_sage,
+    loglinear_sage
+)
 
 def get_normalized_guesses(data, tes, mask):
     t2star_guess, s0_I_guess, t2_guess, _, delta_guess, _ = loglinear_sage.get_maps_loglinear(

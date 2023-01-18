@@ -2,7 +2,6 @@
 Functions to optimally combine data across echoes.
 """
 import logging
-
 import numpy as np
 
 LGR = logging.getLogger("GENERAL")

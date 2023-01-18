@@ -56,7 +56,7 @@ def get_procs(shape, dim_iter, func, n_procs, args, kwargs):
             t_end = n_iters
         else:
             t_end = t_start + n_tasks_per_cpu
-        args.extend(t_start, t_end)
+        args = args + (t_start, t_end)
         proc = multiprocessing.Process(
             target=func,
             args=args,
@@ -65,6 +65,7 @@ def get_procs(shape, dim_iter, func, n_procs, args, kwargs):
         procs.append(proc)
         t_start = t_end
         i_cpu += 1
+    return procs
 
 
 def start_procs(procs):

@@ -1,5 +1,5 @@
 import numpy as np
-import config_sage
+from tedana.workflows.sage import config_sage
 
 
 def get_maps_loglinear(data, tes, mask, n_procs):
