@@ -1,5 +1,6 @@
 import logging
 from threadpoolctl import threadpool_limits
+import numpy as np
 from tedana.workflows.sage import (
     combine_sage,
     io_sage,
@@ -83,6 +84,9 @@ def sage_workflow(cmdline_args):
         optcom_t2star, optcom_t2 = combine_sage.make_optcom_sage(
             data, tes, maps_t2star, maps_s0_I, maps_t2, maps_s0_II, mask.reshape(n_samps, 1)
         )
+
+        # optcom_t2star[~np.isfinite(optcom_t2star)] = 0
+        # optcom_t2[~np.isfinite(optcom_t2star)] = 0
 
     ########################################################################################
     ####################### TEDANA DENOISING ###############################################

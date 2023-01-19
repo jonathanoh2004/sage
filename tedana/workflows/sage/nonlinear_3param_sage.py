@@ -2,21 +2,120 @@ import numpy as np
 from tedana.workflows.sage import (
     config_sage,
     concurrency_sage,
-    nonlinear_sage,
     utils_sage
 )
+from tedana.workflows.sage.nonlinear_sage import GetMapsNonlinear
+
+
+class Get_Maps_Nonlinear_3Param(GetMapsNonlinear):
+    def get_model(self, i_v, i_t, delta):
+        if self.n_param == 3:
+            delta = delta[i_v, i_t]
+
+            def _three_param(X, r2star, s0_I, r2):
+                res = np.zeros(X.shape)
+
+                res[X < X[-1] / 2] = s0_I * np.exp(-1 * X[X < X[-1] / 2] * r2star)
+                res[X > X[-1] / 2] = (
+                    (1 / delta)
+                    * np.exp(-1 * X[-1] * (r2star - r2))
+                    * np.exp(-1 * X[X > X[-1] / 2] * ((2 * r2) - r2star))
+                    * (s0_I)
+                )
+                return res
+
+            return _three_param
+        elif self.n_param == 4:
+
+            def _four_param(X, r2star, s0_I, r2, s0_II):
+                res = np.zeros(X.shape)
+
+                res[X < X[-1] / 2] = s0_I * np.exp(-1 * X[X < X[-1] / 2] * r2star)
+                res[X > X[-1] / 2] = (
+                    s0_II
+                    * np.exp(-1 * X[-1] * (r2star - r2))
+                    * np.exp(-1 * X[X > X[-1] / 2] * ((2 * r2) - r2star))
+                )
+                return res
+
+            return _four_param
+        else:
+            raise ValueError("Invalid value for number of parameters")
+
+
+    def get_guesses(self, i_v, i_t, arrs_shr_mem):
+        if self.n_param == 4:
+            return (
+                arrs_shr_mem["r2star_guess"][i_v, i_t],
+                arrs_shr_mem["s0_I_guess"][i_v, i_t],
+                arrs_shr_mem["r2_guess"][i_v, i_t],
+                arrs_shr_mem["s0_II_guess"][i_v, i_t],
+            )
+        elif self.n_param == 3:
+            return (
+                arrs_shr_mem["r2star_guess"][i_v, i_t],
+                arrs_shr_mem["s0_I_guess"][i_v, i_t],
+                arrs_shr_mem["r2_guess"][i_v, i_t],
+            )
+        else:
+            raise ValueError("Invalid value for number of parameters")
+
+
+    def eval_model(self, i_v, i_t, X, arrs_shr_mem, model):
+        if self.n_param == 4:
+            return model(
+                X,
+                arrs_shr_mem["r2star_res"][i_v, i_t],
+                arrs_shr_mem["s0_I_res"][i_v, i_t],
+                arrs_shr_mem["r2_res"][i_v, i_t],
+                arrs_shr_mem["s0_II_res"][i_v, i_t],
+            )
+        elif self.n_param == 3:
+            return model(
+                X,
+                arrs_shr_mem["r2star_res"][i_v, i_t],
+                arrs_shr_mem["s0_I_res"][i_v, i_t],
+                arrs_shr_mem["r2_res"][i_v, i_t],
+            )
+        else:
+            raise ValueError("Invalid value for number of parameters")
+
+
+    def get_max_iter(self):
+        if self.n_param == 3:
+            return 10000
+        elif self.n_param == 4:
+            return 1000
+        else:
+            raise ValueError("Invalid value for number of parameters")
+
+    def get_bounds(self):
+        if self.n_param == 4:
+            return (
+                (0.1, 0, 0.1, 0),
+                (10000, np.inf, 10000, np.inf),
+            )
+        elif self.n_param == 3:
+            return (
+                (0.1, 0, 0.1),
+                (10000, np.inf, 10000),
+            )
+        else:
+            raise ValueError("Invalid value for number of parameters")
+
 
 def get_maps_nonlinear_3param(data, tes, mask, n_procs):
-    n_samps, n_echos, n_vols = (
+    nonlinear_fitter = Get_Maps_Nonlinear_3Param(n_param=4)
+    n_samps, _, n_vols = (
         config_sage.get_n_samps(data),
         config_sage.get_n_echos(data),
         config_sage.get_n_vols(data),
     )
-    r2star_res, s0_I_res, r2_res, s0_II_res, rmspe_res = nonlinear_sage.init_maps(
+    r2star_res, s0_I_res, r2_res, s0_II_res, rmspe_res = GetMapsNonlinear.init_maps(
         (n_samps, n_vols)
     )
 
-    r2star_guess, s0_I_guess, r2_guess, s0_II_guess, delta = nonlinear_sage.get_normalized_guesses(
+    r2star_guess, s0_I_guess, r2_guess, s0_II_guess, delta = GetMapsNonlinear.get_normalized_guesses(
         data, tes, mask
     )
 
@@ -50,26 +149,25 @@ def get_maps_nonlinear_3param(data, tes, mask, n_procs):
         shr_mem_keys_4param
     )
 
-    kwargs = {
+    kwargs_4param = {
         key: (value.name if value is not None else None) for key, value in shr_mems_4param.items()
     }
 
     dim_iter = config_sage.get_dim_vols()
-    shape = data.shape
-    n_param = 4
-    func = nonlinear_sage.get_fit_nonlinear_sage(
-        n_param, _get_model, _get_max_iter, _get_guesses, _eval_model, _get_bounds
-    )
-    args = (Y.shape[0], n_echos, n_vols, data.dtype)
+    shape = Y.shape
+    dtype = Y.dtype
 
-    procs_4param = concurrency_sage.get_procs(shape, dim_iter, func, n_procs, args, kwargs)
+    args_4param = (shape, dtype)
+    func = nonlinear_fitter.fit_nonlinear_sage
+
+    procs_4param = concurrency_sage.get_procs(shape, dim_iter, func, n_procs, args_4param, kwargs_4param)
     concurrency_sage.start_procs(procs_4param)
     concurrency_sage.join_procs(procs_4param)
 
     r2star_guess = arrs_shr_mem_4param["r2star_res"]
     s0_I_guess = arrs_shr_mem_4param["s0_I_res"]
     r2_guess = arrs_shr_mem_4param["r2_res"]
-    delta = nonlinear_sage.get_normalized_delta(
+    delta = GetMapsNonlinear.get_normalized_delta(
         arrs_shr_mem_4param["s0_I_res"], arrs_shr_mem_4param["s0_II_res"]
     )
 
@@ -78,6 +176,7 @@ def get_maps_nonlinear_3param(data, tes, mask, n_procs):
     r2_res = np.zeros((n_samps, n_vols))
     rmspe_res = np.zeros((n_samps, n_vols))
 
+    # these must match the function signature of fit_nonlinear_sage
     shr_mem_keys_3param = dict(
         zip(
             config_sage.get_nonlinear_keys(),
@@ -107,19 +206,17 @@ def get_maps_nonlinear_3param(data, tes, mask, n_procs):
     }
     kwargs_3param.update(
         {
-            "Y": kwargs["Y"],
-            "X": kwargs["X"],
-            "r2star_guess": kwargs["r2star_res"],
-            "s0_I_guess": kwargs["s0_I_res"],
-            "r2_guess": kwargs["r2_res"],
+            "Y": kwargs_4param["Y"],
+            "X": kwargs_4param["X"],
+            "r2star_guess": kwargs_4param["r2star_res"],
+            "s0_I_guess": kwargs_4param["s0_I_res"],
+            "r2_guess": kwargs_4param["r2_res"],
         }
     )
-    n_param = 3
-    func = nonlinear_sage.get_fit_nonlinear_sage(
-        n_param, _get_model, _get_max_iter, _get_guesses, _eval_model, _get_bounds
-    )
-
-    procs_3param = concurrency_sage.get_procs(shape, dim_iter, func, n_procs, args, kwargs)
+    args_3param = (shape, dtype)
+    nonlinear_fitter.set_n_param(n_param=3)
+    
+    procs_3param = concurrency_sage.get_procs(shape, dim_iter, func, n_procs, args_3param, kwargs_3param)
     concurrency_sage.start_procs(procs_3param)
     concurrency_sage.join_procs(procs_3param)
 
@@ -140,99 +237,3 @@ def get_maps_nonlinear_3param(data, tes, mask, n_procs):
 
     return t2star_res, s0_I_res, t2_res, s0_II_res, delta, rmspe_res
 
-
-def _get_model(n_param, i_v, i_t, delta):
-    if n_param == 4:
-        delta = delta[i_v, i_t]
-
-        def _three_param(X, r2star, s0_I, r2):
-            res = np.zeros(X.shape)
-
-            res[X < X[-1] / 2] = s0_I * np.exp(-1 * X[X < X[-1] / 2] * r2star)
-            res[X > X[-1] / 2] = (
-                (1 / delta)
-                * np.exp(-1 * X[-1] * (r2star - r2))
-                * np.exp(-1 * X[X > X[-1] / 2] * ((2 * r2) - r2star))
-                * (s0_I)
-            )
-            return res
-
-        return _three_param
-    elif n_param == 3:
-
-        def _four_param(X, r2star, s0_I, r2, s0_II):
-            res = np.zeros(X.shape)
-
-            res[X < X[-1] / 2] = s0_I * np.exp(-1 * X[X < X[-1] / 2] * r2star)
-            res[X > X[-1] / 2] = (
-                s0_II
-                * np.exp(-1 * X[-1] * (r2star - r2))
-                * np.exp(-1 * X[X > X[-1] / 2] * ((2 * r2) - r2star))
-            )
-            return res
-
-        return _four_param
-    else:
-        raise ValueError("Invalid value for number of parameters")
-
-
-def _get_guesses(n_param, i_v, i_t, arrs_shr_mem):
-    if n_param == 4:
-        return (
-            arrs_shr_mem["r2star_guess"][i_v, i_t],
-            arrs_shr_mem["s0_I_guess"][i_v, i_t],
-            arrs_shr_mem["r2_guess"][i_v, i_t],
-            arrs_shr_mem["s0_II_guess"][i_v, i_t],
-        )
-    elif n_param == 3:
-        return (
-            arrs_shr_mem["r2star_guess"][i_v, i_t],
-            arrs_shr_mem["s0_I_guess"][i_v, i_t],
-            arrs_shr_mem["r2_guess"][i_v, i_t],
-        )
-    else:
-        raise ValueError("Invalid value for number of parameters")
-
-
-def _eval_model(n_param, i_v, i_t, X, arrs_shr_mem, model):
-    if n_param == 4:
-        return model(
-            X,
-            arrs_shr_mem["r2star_res"][i_v, i_t],
-            arrs_shr_mem["s0_I_res"][i_v, i_t],
-            arrs_shr_mem["r2_res"][i_v, i_t],
-            arrs_shr_mem["s0_II_res"][i_v, i_t],
-        )
-    elif n_param == 3:
-        return model(
-            X,
-            arrs_shr_mem["r2star_res"][i_v, i_t],
-            arrs_shr_mem["s0_I_res"][i_v, i_t],
-            arrs_shr_mem["r2_res"][i_v, i_t],
-        )
-    else:
-        raise ValueError("Invalid value for number of parameters")
-
-
-def _get_max_iter(n_param):
-    if n_param == 3:
-        return 10000
-    elif n_param == 4:
-        return 1000
-    else:
-        raise ValueError("Invalid value for number of parameters")
-
-
-def _get_bounds(n_param):
-    if n_param == 4:
-        return (
-            (0.1, 0, 0.1, 0),
-            (10000, np.inf, 10000, np.inf),
-        )
-    elif n_param == 3:
-        return (
-            (0.1, 0, 0.1),
-            (10000, np.inf, 10000),
-        )
-    else:
-        raise ValueError("Invalid value for number of parameters")

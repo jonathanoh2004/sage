@@ -49,14 +49,14 @@ def get_procs(shape, dim_iter, func, n_procs, args, kwargs):
     procs = []
     n_iters = shape[dim_iter]
     n_tasks_per_cpu = max(n_iters // n_cpus, 1)
-
+    args_orig = args
     i_cpu, t_start, t_end = 0, 0, 0
     while i_cpu < n_cpus and t_end < n_iters:
         if i_cpu + 1 >= n_cpus or t_start + n_tasks_per_cpu > n_iters:
             t_end = n_iters
         else:
             t_end = t_start + n_tasks_per_cpu
-        args = args + (t_start, t_end)
+        args = args_orig + (t_start, t_end)
         proc = multiprocessing.Process(
             target=func,
             args=args,

@@ -1,4 +1,5 @@
 import tedana.utils
+from tedana.workflows.sage import config_sage
 
 
 def chain(funcs, args, kwargs):
@@ -7,8 +8,10 @@ def chain(funcs, args, kwargs):
 
 def unmask_and_copy(arrs_shr_mem, mask):
     res = []
+    valid_keys = config_sage.get_nonlinear_result_keys()
     for key in arrs_shr_mem:
-        res.append(tedana.utils.unmask(arrs_shr_mem[key], mask).copy())
+        if key in valid_keys:
+            res.append(tedana.utils.unmask(arrs_shr_mem[key], mask).copy())
     return res
 
 

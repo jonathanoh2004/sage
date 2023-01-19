@@ -3,7 +3,6 @@ import tedana.bibtex
 from tedana.workflows.sage import (
     nonlinear_3param_sage,
     nonlinear_4param_sage,
-    nonlinear_sage,
     loglinear_sage
 )
 from tedana.workflows.sage.combine_sage import make_optcom_sage
@@ -92,6 +91,16 @@ def get_nonlinear_keys():
         "r2_res",
         "s0_II_res",
         "rmspe_res",
+    ]
+
+def get_nonlinear_result_keys():
+    return [
+        "r2star_res",
+        "s0_I_res",
+        "r2_res",
+        "s0_II_res",
+        "delta",
+        "rmspe_res"
     ]
 
 

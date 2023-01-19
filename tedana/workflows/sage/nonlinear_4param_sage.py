@@ -2,21 +2,60 @@ import numpy as np
 from tedana.workflows.sage import (
     concurrency_sage,
     config_sage,
-    nonlinear_sage,
     utils_sage
 )
+from tedana.workflows.sage.nonlinear_sage import GetMapsNonlinear
+
+class Get_Maps_Nonlinear_4Param(GetMapsNonlinear):
+    def get_model(self, i_v, i_t, delta):
+        def _four_param(X, r2star, s0_I, r2, s0_II):
+            res = np.zeros(X.shape)
+
+            res[X < X[-1] / 2] = s0_I * np.exp(-1 * X[X < X[-1] / 2] * r2star)
+            res[X > X[-1] / 2] = (
+                s0_II
+                * np.exp(-1 * X[-1] * (r2star - r2))
+                * np.exp(-1 * X[X > X[-1] / 2] * ((2 * r2) - r2star))
+            )
+            return res
+
+        return _four_param
+    def get_guesses(self, i_v, i_t, arrs_shr_mem):
+        return (
+            arrs_shr_mem["r2star_guess"][i_v, i_t],
+            arrs_shr_mem["s0_I_guess"][i_v, i_t],
+            arrs_shr_mem["r2_guess"][i_v, i_t],
+            arrs_shr_mem["s0_II_guess"][i_v, i_t],
+        )
+    def get_bounds(self):
+        return (
+            (0.1, 0, 0.1, 0),
+            (10000, np.inf, 10000, np.inf),
+        )
+    def get_max_iter(self):
+        return 10000
+    def eval_model(self, i_v, i_t, X, arrs_shr_mem, model):
+        return model(
+            X,
+            arrs_shr_mem["r2star_res"][i_v, i_t],
+            arrs_shr_mem["s0_I_res"][i_v, i_t],
+            arrs_shr_mem["r2_res"][i_v, i_t],
+            arrs_shr_mem["s0_II_res"][i_v, i_t],
+        )
+
 
 def get_maps_nonlinear_4param(data, tes, mask, n_procs):
-    n_samps, n_echos, n_vols = (
+    nonlinear_fitter = Get_Maps_Nonlinear_4Param(n_param=4)
+    n_samps, _, n_vols = (
         config_sage.get_n_samps(data),
         config_sage.get_n_echos(data),
         config_sage.get_n_vols(data),
     )
-    r2star_res, s0_I_res, r2_res, s0_II_res, rmspe_res = nonlinear_sage.init_maps(
+    r2star_res, s0_I_res, r2_res, s0_II_res, rmspe_res = GetMapsNonlinear.init_maps(
         (n_samps, n_vols)
     )
 
-    r2star_guess, s0_I_guess, r2_guess, s0_II_guess, _ = nonlinear_sage.get_normalized_guesses(
+    r2star_guess, s0_I_guess, r2_guess, s0_II_guess, _ = GetMapsNonlinear.get_normalized_guesses(
         data, tes, mask
     )
 
@@ -51,12 +90,11 @@ def get_maps_nonlinear_4param(data, tes, mask, n_procs):
     kwargs = {key: (value.name if value is not None else None) for key, value in shr_mems.items()}
 
     dim_iter = config_sage.get_dim_vols()
-    shape = data.shape
-    n_param = 4
-    func = nonlinear_sage.get_fit_nonlinear_sage(
-        n_param, _get_model, _get_max_iter, _get_guesses, _eval_model, _get_bounds
-    )
-    args = (Y.shape[0], n_echos, n_vols, data.dtype)
+    shape = Y.shape
+    dtype = Y.dtype
+    
+    args = (shape, dtype)
+    func = nonlinear_fitter.fit_nonlinear_sage
 
     procs = concurrency_sage.get_procs(shape, dim_iter, func, n_procs, args, kwargs)
     concurrency_sage.start_procs(procs)
@@ -73,47 +111,3 @@ def get_maps_nonlinear_4param(data, tes, mask, n_procs):
 
     return t2star_res, s0_I_res, t2_res, s0_II_res, delta, rmspe_res
 
-
-def _get_model(n_param, i_v, i_t, delta):
-    def _four_param(X, r2star, s0_I, r2, s0_II):
-        res = np.zeros(X.shape)
-
-        res[X < X[-1] / 2] = s0_I * np.exp(-1 * X[X < X[-1] / 2] * r2star)
-        res[X > X[-1] / 2] = (
-            s0_II
-            * np.exp(-1 * X[-1] * (r2star - r2))
-            * np.exp(-1 * X[X > X[-1] / 2] * ((2 * r2) - r2star))
-        )
-        return res
-
-    return _four_param
-
-
-def _get_max_iter(n_param):
-    return 10000
-
-
-def _get_guesses(n_param, i_v, i_t, arrs_shr_mem):
-    return (
-        arrs_shr_mem["r2star_guess"][i_v, i_t],
-        arrs_shr_mem["s0_I_guess"][i_v, i_t],
-        arrs_shr_mem["r2_guess"][i_v, i_t],
-        arrs_shr_mem["s0_II_guess"][i_v, i_t],
-    )
-
-
-def _eval_model(n_param, i_v, i_t, X, arrs_shr_mem, model):
-    return model(
-        X,
-        arrs_shr_mem["r2star_res"][i_v, i_t],
-        arrs_shr_mem["s0_I_res"][i_v, i_t],
-        arrs_shr_mem["r2_res"][i_v, i_t],
-        arrs_shr_mem["s0_II_res"][i_v, i_t],
-    )
-
-
-def _get_bounds(n_param):
-    return (
-        (0.1, 0, 0.1, 0),
-        (10000, np.inf, 10000, np.inf),
-    )
