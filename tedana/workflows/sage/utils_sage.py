@@ -12,6 +12,8 @@ def unmask_and_copy(arrs_shr_mem, mask):
     for key in arrs_shr_mem:
         if key in valid_keys:
             res.append(tedana.utils.unmask(arrs_shr_mem[key], mask).copy())
+        else:
+            res.append(None)
     return res
 
 
