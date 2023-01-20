@@ -1,4 +1,6 @@
+import os
 import sys
+import logging
 import json
 import numpy as np
 import pandas as pd
@@ -10,10 +12,10 @@ import tedana.reporting
 import tedana.io
 import tedana.stats
 import tedana.utils
-from tedana.workflows.sage import (
-    config_sage,
-    io_sage
-)
+from tedana.workflows.sage import config_sage, io_sage
+
+LGR = logging.getLogger("GENERAL")
+RepLGR = logging.getLogger("REPORT")
 
 
 def denoise(
@@ -31,6 +33,7 @@ def denoise(
     cmdline_args,
 ):
 
+    LGR.info("workflow begun for " + data_oc_label)
     required_metrics = config_sage.get_required_metrics()
 
     data_orig = data.copy()
@@ -84,7 +87,7 @@ def denoise(
             # Estimate betas and compute selection metrics for mixing matrix
             # generated from dimensionally reduced data using full data (i.e., data
             # with thermal noise)
-            print("Making second component selection guess from ICA results")
+            LGR.info("Making second component selection guess from ICA results")
             comptable = tedana.metrics.collect.generate_metrics(
                 data,
                 data_oc,
@@ -101,14 +104,14 @@ def denoise(
 
             n_bold_comps = comptable[comptable.classification == "accepted"].shape[0]
             if (n_restarts < cmdline_args.maxrestart) and (n_bold_comps == 0):
-                print("No BOLD components found. Re-attempting ICA.")
+                LGR.warning("No BOLD components found. Re-attempting ICA.")
             elif n_bold_comps == 0:
-                print("No BOLD components found, but maximum number of restarts reached.")
+                LGR.warning("No BOLD components found, but maximum number of restarts reached.")
                 keep_restarting = False
             else:
                 keep_restarting = False
     else:
-        print("Using supplied mixing matrix from ICA")
+        LGR.info("Using supplied mixing matrix from ICA")
         mixing_file = io_generator.get_name("ICA mixing tsv")
         mmix = pd.read_table(mixing_file).values
 
@@ -127,12 +130,14 @@ def denoise(
                 comptable, n_echos, n_vols
             )
         else:
-            print("Using supplied component table for classification")
+            LGR.info("Using supplied component table for classification")
+            cmdline_args.ctab = os.path.abspath(cmdline_args.ctab)
             comptable = pd.read_table(cmdline_args.ctab)
             # Change rationale value of rows with NaN to empty strings
             comptable.loc[comptable.rationale.isna(), "rationale"] = ""
 
             if cmdline_args.manacc is not None:
+                cmdline_args.manacc = [int(m) for m in cmdline_args.manacc]
                 comptable, metric_metadata = tedana.selection.manual_selection(
                     comptable, acc=cmdline_args.manacc
                 )
@@ -162,7 +167,7 @@ def denoise(
         json.dump(decomp_metadata, fo, sort_keys=True, indent=4)
 
     if comptable[comptable.classification == "accepted"].shape[0] == 0:
-        print("No BOLD components detected! Please check data and results!")
+        LGR.warning("No BOLD components detected! Please check data and results!")
 
     mmix_orig = mmix.copy()
 
@@ -183,7 +188,7 @@ def denoise(
         mixing_df = pd.DataFrame(data=mmix, columns=comp_names)
         io_generator.save_file(mixing_df, "ICA orthogonalized mixing tsv")
 
-        print(
+        RepLGR.info(
             "Rejected components' time series were then "
             "orthogonalized with respect to accepted components' time "
             "series."
@@ -217,7 +222,7 @@ def denoise(
         fo.write(description_references)
 
     if not cmdline_args.no_reports:
-        print("Making figures folder with static component maps and timecourse plots.")
+        LGR.info("Making figures folder with static component maps and timecourse plots.")
 
         dn_ts, hikts, lowkts = tedana.io.denoise_ts(data_oc, mmix, mask, comptable)
 
@@ -252,14 +257,14 @@ def denoise(
             )
 
         if sys.version_info.major == 3 and sys.version_info.minor < 6:
-            warn_msg = (
+            LGR.warn(
                 "Reports requested but Python version is less than "
                 "3.6.0. Dynamic reports will not be generated."
             )
-            print(warn_msg)
         else:
-            print("Generating dynamic report")
+            LGR.info("Generating dynamic report")
             tedana.reporting.generate_report(io_generator, tr=img_t_r)
+    LGR.info("workflow completed for " + data_oc_label)
 
 
 """

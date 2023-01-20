@@ -1,10 +1,13 @@
 import os
+import logging
 import shutil
 import numpy as np
 import nilearn.image
 import tedana.io
 import tedana.utils
 from tedana.workflows.sage import config_sage
+
+LGR = logging.getLogger("GENERAL")
 
 
 def get_echo_times(tes):
@@ -26,8 +29,8 @@ def get_mask(mask, data):
         # load provided mask
         mask = nilearn.image.load_img(mask).get_fdata().reshape(-1).astype(bool)
     else:
-        # include all voxels with at least one nonzero value
-        mask = np.any(data != 0, axis=(1, 2)).reshape(config_sage.get_n_samps(data), 1)
+        # include all voxels
+        mask = np.ones(data.shape[0]).astype(bool)
     return mask
 
 
@@ -53,8 +56,8 @@ def get_mixm(mixm, io_generator):
 
 
 def get_rerun_maps(rerun, sub_dir, prefix, io_generator):
-    rerun_keys = config_sage.get_rerun_keys()
-    output_keys = config_sage.get_output_keys()
+    rerun_keys = config_sage.get_keys_rerun()
+    output_keys = config_sage.get_keys_output()
     rerun_imgs = {}
     if rerun is not None:
         if os.path.isdir(rerun):
@@ -73,7 +76,7 @@ def get_rerun_maps(rerun, sub_dir, prefix, io_generator):
                     try:
                         rerun_imgs[key] = nilearn.image.load_img(rerun_file).get_fdata()
                     except Exception:
-                        print("Error loading rerun imgs. Imgs will be recomputed.")
+                        LGR.warning("Error loading rerun imgs. Imgs will be recomputed.")
                         rerun_imgs.clear()
                         break
     return rerun_imgs
@@ -93,7 +96,7 @@ def get_io_generator(ref_img, convention, out_dir, prefix, verbose):
 
 def save_maps(img_maps, img_keys, io_generator):
     for img_map, img_key in zip(img_maps, img_keys, strict=True):
-        output_key = config_sage.get_output_keys()[img_key]
+        output_key = config_sage.get_keys_output()[img_key]
         if output_key is None:
             raise ValueError("invalid output key")
         elif img_map is not None:
@@ -127,6 +130,4 @@ io_generator.save_file(s0_I_maps, get_output_key("s0I"))
     io_generator.save_file(t2_maps, get_output_key("t2"))
     if rmspe is not None:
         io_generator.save_file(rmspe, get_output_key("rmspe"))
-
-
 """

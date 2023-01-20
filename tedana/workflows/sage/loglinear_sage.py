@@ -59,11 +59,3 @@ def _get_dep_vars(data, mask):
     Y = np.log(Y) * (np.repeat(mask, axis=0, repeats=n_vols).T)
     Y[~np.isfinite(Y)] = 0
     return Y
-
-
-def _reshape_arrs(arrs=None, shape=None):
-    if arrs is None or shape is None:
-        return None
-    for arr in arrs:
-        arr = arr.reshape(shape)
-    return arrs

@@ -1,6 +1,6 @@
 import logging
-from threadpoolctl import threadpool_limits
 import numpy as np
+from threadpoolctl import threadpool_limits
 from tedana.workflows.sage import (
     combine_sage,
     io_sage,
@@ -11,7 +11,6 @@ from tedana.workflows.sage import (
 )
 
 LGR = logging.getLogger("GENERAL")
-RepLGR = logging.getLogger("REPORT")
 
 
 def sage_workflow(cmdline_args):
@@ -21,9 +20,7 @@ def sage_workflow(cmdline_args):
 
     tes = io_sage.get_echo_times(cmdline_args.echo_times)
 
-    data, ref_img = io_sage.get_data(
-        cmdline_args.data_files_names, tes, cmdline_args.tslice
-    )
+    data, ref_img = io_sage.get_data(cmdline_args.data_files_names, tes, cmdline_args.tslice)
 
     gscontrol = io_sage.get_gscontrol(cmdline_args.gscontrol)
 
@@ -36,7 +33,7 @@ def sage_workflow(cmdline_args):
     mask = io_sage.get_mask(cmdline_args.mask_file_name, data)
 
     sub_dir = io_sage.gen_sub_dirs(
-        [cmdline_args.out_dir, config_sage.get_sub_dir(cmdline_args.fittype)]
+        [cmdline_args.out_dir, config_sage.get_subdir(cmdline_args.fittype)]
     )
 
     io_generator = io_sage.get_io_generator(
@@ -61,7 +58,7 @@ def sage_workflow(cmdline_args):
         optcom_t2 = rerun_imgs["optcom_t2"].reshape(n_samps, n_vols)
 
     else:
-        fit_func = config_sage.get_maps_func(cmdline_args.fittype)
+        fit_func = config_sage.get_func_maps(cmdline_args.fittype)
         (
             maps_t2star,
             maps_s0_I,
@@ -73,7 +70,7 @@ def sage_workflow(cmdline_args):
 
         io_sage.save_maps(
             [maps_t2star, maps_s0_I, maps_t2, maps_s0_II, maps_delta, maps_rmspe],
-            config_sage.get_maps_keys(),
+            config_sage.get_keys_maps(),
             io_generator,
         )
 
@@ -85,14 +82,14 @@ def sage_workflow(cmdline_args):
             data, tes, maps_t2star, maps_s0_I, maps_t2, maps_s0_II, mask.reshape(n_samps, 1)
         )
 
-        # optcom_t2star[~np.isfinite(optcom_t2star)] = 0
-        # optcom_t2[~np.isfinite(optcom_t2star)] = 0
+        optcom_t2star[~np.isfinite(optcom_t2star)] = 0
+        optcom_t2[~np.isfinite(optcom_t2star)] = 0
 
     ########################################################################################
     ####################### TEDANA DENOISING ###############################################
     ########################################################################################
 
-    for data_oc, data_oc_label in zip([optcom_t2star, optcom_t2], config_sage.get_optcoms_keys()):
+    for data_oc, data_oc_label in zip([optcom_t2star, optcom_t2], config_sage.get_keys_optcoms()):
 
         sub_dir_tedana = io_sage.gen_sub_dirs([sub_dir, data_oc_label])
 

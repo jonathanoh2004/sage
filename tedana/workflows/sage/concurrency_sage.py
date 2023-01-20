@@ -42,12 +42,11 @@ def prep_shared_mem_with_name(mapping, shape, dtype):
     return shr_mems, arrs_shr_mem
 
 
-def get_procs(shape, dim_iter, func, n_procs, args, kwargs):
+def get_procs(n_iters, func, n_procs, args, kwargs):
     n_cpus = multiprocessing.cpu_count()
     n_cpus = n_procs if n_procs > 0 and n_procs < n_cpus else n_cpus
 
     procs = []
-    n_iters = shape[dim_iter]
     n_tasks_per_cpu = max(n_iters // n_cpus, 1)
     args_orig = args
     i_cpu, t_start, t_end = 0, 0, 0

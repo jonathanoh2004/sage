@@ -1,19 +1,20 @@
+import numpy as np
 import tedana.utils
 from tedana.workflows.sage import config_sage
 
 
-def chain(funcs, args, kwargs):
-    pass
+def init_arrs(shape, num_arrs):
+    arrs = []
+    for _ in range(num_arrs):
+        arrs.append(np.zeros(shape))
+    return arrs
 
 
-def unmask_and_copy(arrs_shr_mem, mask):
+def unmask_and_copy(arrs, mask):
     res = []
-    valid_keys = config_sage.get_nonlinear_result_keys()
-    for key in arrs_shr_mem:
-        if key in valid_keys:
-            res.append(tedana.utils.unmask(arrs_shr_mem[key], mask).copy())
-        else:
-            res.append(None)
+    for arr in arrs:
+        if arr is not None:
+            res.append(tedana.utils.unmask(arr, mask).copy())
     return res
 
 
