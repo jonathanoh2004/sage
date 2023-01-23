@@ -33,7 +33,7 @@ class Get_Maps_Nonlinear_4Param(GetMapsNonlinear):
         )
 
     def get_max_iter(self):
-        return 1
+        return 10000
 
     def eval_model(self, i_v, i_t, X, arrs_shr_mem, model):
         return model(

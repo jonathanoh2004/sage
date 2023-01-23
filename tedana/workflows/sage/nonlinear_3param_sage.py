@@ -76,9 +76,9 @@ class Get_Maps_Nonlinear_3Param(GetMapsNonlinear):
 
     def get_max_iter(self):
         if self.n_param == 3:
-            return 1
+            return 10000
         elif self.n_param == 4:
-            return 1
+            return 1000
         else:
             raise ValueError("Invalid value for number of parameters")
 

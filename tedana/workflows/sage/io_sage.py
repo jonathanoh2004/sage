@@ -95,7 +95,7 @@ def get_io_generator(ref_img, convention, out_dir, prefix, verbose):
 
 
 def save_maps(img_maps, img_keys, io_generator):
-    for img_map, img_key in zip(img_maps, img_keys, strict=True):
+    for img_map, img_key in zip(img_maps, img_keys):
         output_key = config_sage.get_keys_output()[img_key]
         if output_key is None:
             raise ValueError("invalid output key")
