@@ -4,6 +4,13 @@ import numpy as np
 
 
 def prep_shared_mem_with_arr(mapping):
+    """
+    ----- INPUT -----
+        mapping: dict[str, numpy.ndarray]
+    ----- OUTPUT -----
+        shr_mems: dict[str, multiprocessing.shared_memory.SharedMemory | None]
+        arrs_shr_mem: dict[str, numpy.ndarray]
+    """
     shr_mems, arrs_shr_mem = {}, {}
 
     for (key, arr) in mapping.items():
@@ -20,6 +27,15 @@ def prep_shared_mem_with_arr(mapping):
 
 
 def prep_shared_mem_with_name(mapping, shape, dtype):
+    """
+    ----- INPUT -----
+        mapping: dict[str, numpy.ndarray]
+        shape: tuple[int, ...]
+        dtype: numpy.dtype
+    ----- OUTPUT -----
+        shr_mems: dict[str, multiprocessing.shared_memory.SharedMemory | None]
+        arrs_shr_mem: dict[str, numpy.ndarray | None]
+    """
     shr_mems, arrs_shr_mem = {}, {}
 
     for (key, name) in mapping.items():
@@ -43,6 +59,16 @@ def prep_shared_mem_with_name(mapping, shape, dtype):
 
 
 def get_procs(n_iters, func, n_procs, args, kwargs):
+    """
+    ----- INPUT -----
+        n_iters: int
+        func: Callable[..., Any]
+        n_procs: int
+        args: tuple
+        kwargs: dict
+    ----- OUTPUT -----
+        procs: list[multiprocessing.Process, ...]
+    """
     n_cpus = multiprocessing.cpu_count()
     n_cpus = n_procs if n_procs > 0 and n_procs < n_cpus else n_cpus
 

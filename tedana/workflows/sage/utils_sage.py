@@ -1,20 +1,36 @@
 import numpy as np
 import tedana.utils
-from tedana.workflows.sage import config_sage
 
 
 def init_arrs(shape, num_arrs):
+    """
+    Convenience function used to allocate a list of the
+    indicated number of zero arrays of the indicated shape
+    ----- INPUT -----
+        shape: tuple[int, ...]
+        num_arrs: int
+    ----- OUTPUT -----
+        arrs: list[numpy.ndarray, ...]
+    """
     arrs = []
     for _ in range(num_arrs):
         arrs.append(np.zeros(shape))
     return arrs
 
 
-def unmask_and_copy(arrs, mask):
+def unmask(arrs, mask):
+    """
+    Convenience function to unmask a list of arrays
+    and check for None values.
+    ----- INPUT -----
+        arrs: list[numpy.ndarray | None]
+    ----- OUTPUT -----
+        res: list[numpy.ndarray, ...]
+    """
     res = []
     for arr in arrs:
         if arr is not None:
-            res.append(tedana.utils.unmask(arr, mask).copy())
+            res.append(tedana.utils.unmask(arr, mask))
     return res
 
 

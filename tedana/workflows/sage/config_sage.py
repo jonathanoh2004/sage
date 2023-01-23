@@ -65,6 +65,10 @@ def get_keys_rerun():
 
 
 def get_keys_shr_mem():
+    """
+    Shared memory keys
+    Keys used by dicts to refer to shared memory names and arrays
+    """
     return [
         "Y",
         "X",
@@ -82,6 +86,9 @@ def get_keys_shr_mem():
 
 
 def get_required_metrics():
+    """
+    Used to specify metrics computed by tedana denoising functions
+    """
     return [
         "kappa",
         "rho",
@@ -98,6 +105,10 @@ def get_required_metrics():
 
 
 def get_func_maps(fittype):
+    """
+    Maps command line arguments to functions for
+    computing T2* and T2 maps
+    """
     if fittype == "loglin":
         return loglinear_sage.get_maps_loglinear
     elif fittype == "nonlin3":

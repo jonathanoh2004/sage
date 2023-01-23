@@ -98,6 +98,10 @@ class Get_Maps_Nonlinear_3Param(GetMapsNonlinear):
 
 
 def get_maps_nonlinear_3param(data, tes, mask, n_procs):
+    """
+    Performs 3-param fit for T2* and T2 for SAGE sequence
+    after performing loose 4-param fit to find delta values.
+    """
     nonlinear_fitter = Get_Maps_Nonlinear_3Param(n_param=4)
 
     r2star_res, s0I_res, r2_res, s0II_res, rmspe_res = utils_sage.init_arrs(
@@ -205,7 +209,7 @@ def get_maps_nonlinear_3param(data, tes, mask, n_procs):
     concurrency_sage.start_procs(procs_3param)
     concurrency_sage.join_procs(procs_3param)
 
-    r2star_res, s0I_res, r2_res, delta_res, rmspe_res = utils_sage.unmask_and_copy(
+    r2star_res, s0I_res, r2_res, delta_res, rmspe_res = utils_sage.unmask(
         list(
             filter(
                 lambda val: True if val is not None else False,

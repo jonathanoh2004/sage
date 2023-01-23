@@ -46,6 +46,9 @@ class Get_Maps_Nonlinear_4Param(GetMapsNonlinear):
 
 
 def get_maps_nonlinear_4param(data, tes, mask, n_procs):
+    """
+    Performs 4-param fit for T2* and T2 for SAGE sequence
+    """
     nonlinear_fitter = Get_Maps_Nonlinear_4Param(n_param=4)
 
     r2star_res, s0I_res, r2_res, s0II_res, rmspe_res = utils_sage.init_arrs(
@@ -93,7 +96,7 @@ def get_maps_nonlinear_4param(data, tes, mask, n_procs):
     concurrency_sage.start_procs(procs)
     concurrency_sage.join_procs(procs)
 
-    r2star_res, s0I_res, r2_res, s0II_res, rmspe_res = utils_sage.unmask_and_copy(
+    r2star_res, s0I_res, r2_res, s0II_res, rmspe_res = utils_sage.unmask(
         list(
             filter(
                 lambda val: True if val is not None else False,

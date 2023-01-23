@@ -14,6 +14,12 @@ LGR = logging.getLogger("GENERAL")
 
 
 def workflow_sage(cmdline_args):
+    """'
+    The workflow function for SAGE (spin and gradient echo) fMRI sequences.
+    1) Computes and outputs T2* and T2 maps.
+    2) Computes and outputs T2* and T2 optimal combinations.
+    3) Denoises T2* and T2 optimal combinations using tedana.
+    """
     ########################################################################################
     ####################### RETRIEVE AND PREP DATA #########################################
     ########################################################################################
@@ -61,15 +67,15 @@ def workflow_sage(cmdline_args):
         fit_func = config_sage.get_func_maps(cmdline_args.fittype)
         (
             maps_t2star,
-            maps_s0_I,
+            maps_s0I,
             maps_t2,
-            maps_s0_II,
+            maps_s0II,
             maps_delta,
             maps_rmspe,
         ) = fit_func(data, tes, mask.reshape(n_samps, 1), cmdline_args.n_procs)
 
         io_sage.save_maps(
-            [maps_t2star, maps_s0_I, maps_t2, maps_s0_II, maps_delta, maps_rmspe],
+            [maps_t2star, maps_s0I, maps_t2, maps_s0II, maps_delta, maps_rmspe],
             config_sage.get_keys_maps(),
             io_generator,
         )
@@ -79,7 +85,7 @@ def workflow_sage(cmdline_args):
         ########################################################################################
 
         optcom_t2star, optcom_t2 = combine_sage.make_optcom_sage(
-            data, tes, maps_t2star, maps_s0_I, maps_t2, maps_s0_II, mask.reshape(n_samps, 1)
+            data, tes, maps_t2star, maps_s0I, maps_t2, maps_s0II, mask.reshape(n_samps, 1)
         )
 
         optcom_t2star[~np.isfinite(optcom_t2star)] = 0
@@ -128,7 +134,7 @@ def workflow_sage(cmdline_args):
         utils_sage.teardown_loggers()
 
 
-def _main(argv=None):
+def _main():
     cmdline_args = cmdline_sage.Cmdline_Args.parse_args()
     n_threads = None if cmdline_args.n_threads == -1 else cmdline_args.n_threads
     with threadpool_limits(limits=n_threads, user_api=None):

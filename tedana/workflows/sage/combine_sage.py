@@ -14,6 +14,9 @@ RepLGR = logging.getLogger("REPORT")
 
 
 def make_optcom_sage(data, tes, t2star_map, s0_I_map, t2_map, s0_II_map, mask):
+    """
+    Computes and returns optimal combinations
+    """
     if data.ndim != 3:
         raise ValueError("Data should be of dimension (S x E x T)")
     if data.shape[1] != len(tes):

@@ -4,6 +4,11 @@ from tedana.workflows.sage import parser_utils_sage
 
 
 class Cmdline_Args:
+    """
+    Type used to parse arguments from command line
+    and to hold arguments for retrieval.
+    """
+
     @staticmethod
     def parse_args():
         options = Cmdline_Args._get_parser().parse_args()

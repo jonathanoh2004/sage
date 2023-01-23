@@ -12,6 +12,14 @@ LGR = logging.getLogger("GENERAL")
 
 
 class GetMapsNonlinear(metaclass=abc.ABCMeta):
+    """'
+    Represents type that performs nonlinear fitting for SAGE
+    T2* and T2 maps. Depends only on int representing the
+    number of parameters used in the fit. Also acts as namespace
+    for functions used to prepare data for nonlinear fitting.
+    Also declares interface for methods used by fit_nonlinear_sage.
+    """
+
     def __init__(self, n_param):
         self.n_param = n_param
 
@@ -77,6 +85,12 @@ class GetMapsNonlinear(metaclass=abc.ABCMeta):
         s0II_res=None,
         rmspe_res=None,
     ):
+        """
+        Used by nonlinear 3-param and 4-param fitting for providing enough
+        information to concurrency_sage to allocate shared memory.
+        ----- OUTPUT -----
+            dict[str, np.ndarray | None]
+        """
         objs = [
             r2star_guess,
             s0I_guess,
