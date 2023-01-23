@@ -61,7 +61,7 @@ def get_keys_output():
 
 
 def get_keys_rerun():
-    return ["t2star", "t2", "optcom_t2star", "optcom_t2"]
+    return ["t2star", "t2", "optcom t2star", "optcom t2"]
 
 
 def get_keys_shr_mem():

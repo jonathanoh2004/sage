@@ -13,7 +13,7 @@ from tedana.workflows.sage import (
 LGR = logging.getLogger("GENERAL")
 
 
-def sage_workflow(cmdline_args):
+def workflow_sage(cmdline_args):
     ########################################################################################
     ####################### RETRIEVE AND PREP DATA #########################################
     ########################################################################################
@@ -54,8 +54,8 @@ def sage_workflow(cmdline_args):
         )
         maps_t2star = rerun_imgs["t2star"].reshape(n_samps, n_vols)
         maps_t2 = rerun_imgs["t2"].reshape(n_samps, n_vols)
-        optcom_t2star = rerun_imgs["optcom_t2star"].reshape(n_samps, n_vols)
-        optcom_t2 = rerun_imgs["optcom_t2"].reshape(n_samps, n_vols)
+        optcom_t2star = rerun_imgs["optcom t2star"].reshape(n_samps, n_vols)
+        optcom_t2 = rerun_imgs["optcom t2"].reshape(n_samps, n_vols)
 
     else:
         fit_func = config_sage.get_func_maps(cmdline_args.fittype)
@@ -132,7 +132,7 @@ def _main(argv=None):
     cmdline_args = cmdline_sage.Cmdline_Args.parse_args()
     n_threads = None if cmdline_args.n_threads == -1 else cmdline_args.n_threads
     with threadpool_limits(limits=n_threads, user_api=None):
-        sage_workflow(cmdline_args)
+        workflow_sage(cmdline_args)
 
 
 if __name__ == "__main__":
