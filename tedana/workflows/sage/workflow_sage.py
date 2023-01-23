@@ -55,9 +55,7 @@ def workflow_sage(cmdline_args):
     ########################################################################################
 
     if cmdline_args.rerun_maps_dir is not None:
-        rerun_imgs = io_sage.get_rerun_maps(
-            cmdline_args.rerun_maps_dir, sub_dir, cmdline_args.prefix, io_generator
-        )
+        rerun_imgs = io_sage.get_rerun_maps(cmdline_args, ref_img)
         maps_t2star = rerun_imgs["t2star"].reshape(n_samps, n_vols)
         maps_t2 = rerun_imgs["t2"].reshape(n_samps, n_vols)
         optcom_t2star = rerun_imgs["optcom t2star"].reshape(n_samps, n_vols)

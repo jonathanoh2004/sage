@@ -55,16 +55,45 @@ def get_mixm(mixm, io_generator):
         return None
 
 
-def get_rerun_maps(rerun, sub_dir, prefix, io_generator):
+def get_rerun_maps(cmdline_args, ref_img):
+    """
+    Used to load T2* and T2 maps and optcoms when --rerun-dir
+    argument is specified. Looks for optcoms in subdirectories
+    of the directory specified.
+    """
     rerun_keys = config_sage.get_keys_rerun()
     output_keys = config_sage.get_keys_output()
+    optcom_keys = config_sage.get_keys_optcoms()
+
+    rerun_maps_dir = gen_sub_dirs([cmdline_args.rerun_maps_dir])
+
+    io_generator = get_io_generator(
+        ref_img=ref_img,
+        convention=cmdline_args.convention,
+        out_dir=rerun_maps_dir,
+        prefix=cmdline_args.prefix,
+        verbose=cmdline_args.verbose,
+    )
+
     rerun_imgs = {}
-    if rerun is not None:
-        if os.path.isdir(rerun):
+    if rerun_maps_dir is not None:
+        if os.path.isdir(rerun_maps_dir):
             rerun_files = {
-                k: os.path.join(rerun, sub_dir, prefix + io_generator.get_name(output_keys[k]))
+                k: os.path.abspath(io_generator.get_name(output_keys[k]))
                 for k in rerun_keys
+                if k not in optcom_keys
             }
+            for optcom_key in optcom_keys:
+                io_generator = get_io_generator(
+                    ref_img=ref_img,
+                    convention=cmdline_args.convention,
+                    out_dir=os.path.join(rerun_maps_dir, optcom_key),
+                    prefix=cmdline_args.prefix,
+                    verbose=cmdline_args.verbose,
+                )
+                rerun_files[optcom_key] = os.path.abspath(
+                    io_generator.get_name(output_keys[optcom_key])
+                )
 
             if not all([os.path.isfile(rerun_file) for rerun_file in rerun_files.values()]):
                 raise ValueError(
@@ -104,6 +133,13 @@ def save_maps(img_maps, img_keys, io_generator):
 
 
 def gen_sub_dirs(sub_dirs):
+    """
+    Takes in a list of directories, where the first
+    is an absolute path and the following are relative
+    subdirectories. Creates subdirectories when they
+    do not exist. Returns the most nested subdirectory
+    or raises an error.
+    """
     if not isinstance(sub_dirs, list):
         sub_dirs = [sub_dirs]
     nested_dir = None
