@@ -5,7 +5,6 @@ import logging
 import numpy as np
 
 LGR = logging.getLogger("GENERAL")
-RepLGR = logging.getLogger("REPORT")
 
 
 ######################################################################################
