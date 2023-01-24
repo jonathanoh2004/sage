@@ -169,7 +169,7 @@ def get_maps_nonlinear_3param(data, tes, mask, n_procs):
         len(config_sage.get_keys_maps_results_nonlin_3param_short()),
     )
 
-    shr_mem_keys_3param = GetMapsNonlinear.get_dict_shr_mem_masked(
+    dict_shr_mem_3param = GetMapsNonlinear.get_dict_shr_mem_masked(
         Y,
         X,
         mask,
@@ -187,7 +187,7 @@ def get_maps_nonlinear_3param(data, tes, mask, n_procs):
 
     # exclude Y and X because they are already allocated
     shr_mems_3param, arrs_shr_mem_3param = concurrency_sage.prep_shared_mem_with_arr(
-        dict(filter(lambda item: item[0] not in ["Y", "X"], shr_mem_keys_3param.items()))
+        dict(filter(lambda item: item[0] not in ["Y", "X"], dict_shr_mem_3param.items()))
     )
 
     kwargs_3param = {
@@ -209,20 +209,23 @@ def get_maps_nonlinear_3param(data, tes, mask, n_procs):
     concurrency_sage.start_procs(procs_3param)
     concurrency_sage.join_procs(procs_3param)
 
-    r2star_res, s0I_res, r2_res, delta_res, rmspe_res = utils_sage.unmask(
-        list(
+    result = utils_sage.unmask(
+        dict(
             filter(
-                lambda val: True if val is not None else False,
-                map(
-                    lambda item: item[1]
-                    if item[0] in config_sage.get_keys_maps_results_nonlin_3param()
-                    else None,
-                    arrs_shr_mem_3param.items(),
-                ),
+                lambda item: item
+                if item[0] in config_sage.get_keys_maps_results_nonlin_3param()
+                else None,
+                arrs_shr_mem_3param.items(),
             ),
         ),
         mask,
     )
+
+    r2star_res = result["r2star_res"]
+    s0I_res = result["s0I_res"]
+    r2_res = result["r2_res"]
+    delta_res = result["delta_res"]
+    rmspe_res = result["rmspe_res"]
 
     concurrency_sage.close_and_unlink_shr_mem(shr_mems_4param)
     concurrency_sage.close_and_unlink_shr_mem(shr_mems_3param)

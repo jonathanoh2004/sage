@@ -18,19 +18,19 @@ def init_arrs(shape, num_arrs):
     return arrs
 
 
-def unmask(arrs, mask):
+def unmask(dict_arrs, mask):
     """
     Convenience function to unmask a list of arrays
     and check for None values.
     ----- INPUT -----
-        arrs: list[numpy.ndarray | None]
+        arrs: dict[numpy.ndarray | None]
     ----- OUTPUT -----
-        res: list[numpy.ndarray, ...]
+        res: dict[numpy.ndarray, ...]
     """
-    res = []
-    for arr in arrs:
+    res = {}
+    for key, arr in dict_arrs.items():
         if arr is not None:
-            res.append(tedana.utils.unmask(arr, mask))
+            res[key] = tedana.utils.unmask(arr, mask)
     return res
 
 

@@ -96,20 +96,23 @@ def get_maps_nonlinear_4param(data, tes, mask, n_procs):
     concurrency_sage.start_procs(procs)
     concurrency_sage.join_procs(procs)
 
-    r2star_res, s0I_res, r2_res, s0II_res, rmspe_res = utils_sage.unmask(
-        list(
+    result = utils_sage.unmask(
+        dict(
             filter(
-                lambda val: True if val is not None else False,
-                map(
-                    lambda item: item[1]
-                    if item[0] in config_sage.get_keys_maps_results_nonlin_4param()
-                    else None,
-                    arrs_shr_mem.items(),
-                ),
+                lambda item: item
+                if item[0] in config_sage.get_keys_maps_results_nonlin_4param()
+                else None,
+                arrs_shr_mem.items(),
             ),
         ),
         mask,
     )
+
+    r2star_res = result["r2star_res"]
+    s0I_res = result["s0I_res"]
+    r2_res = result["r2_res"]
+    s0II_res = result["s0II_res"]
+    rmspe_res = result["rmspe_res"]
 
     concurrency_sage.close_and_unlink_shr_mem(shr_mems)
 

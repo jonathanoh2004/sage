@@ -13,11 +13,11 @@ def get_keys_maps():
 
 
 def get_keys_maps_nonlin_3param():
-    return ["t2star", "s0I", "t2", "delta", "rmspe"]
+    return ["r2star", "s0I", "r2", "delta", "rmspe"]
 
 
 def get_keys_maps_nonlin_4param():
-    return ["t2star", "s0I", "t2", "s0II", "rmspe"]
+    return ["r2star", "s0I", "r2", "s0II", "rmspe"]
 
 
 def get_keys_maps_results():
