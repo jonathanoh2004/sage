@@ -7,6 +7,10 @@
         "orig": "t2vG",
         "bidsv1.5.0": "T2_Map"
     },
+    "s0 img": {
+        "orig": "s0vG",
+        "bidsv1.5.0": "S0_Map"
+    },
     "s0I img": {
         "orig": "s0IvG",
         "bidsv1.5.0": "S0I_Map"

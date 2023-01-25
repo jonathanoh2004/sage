@@ -5,7 +5,7 @@
 from .t2star import t2smap_workflow
 
 # Overrides submodules with their functions.
-from .full import tedana_workflow
+from .tedana import tedana_workflow
 
 from .sage.workflow_sage import workflow_sage
 
