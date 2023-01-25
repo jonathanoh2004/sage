@@ -1,5 +1,6 @@
 import logging
 import numpy as np
+import scipy.stats
 from threadpoolctl import threadpool_limits
 from tedana.workflows.sage import (
     combine_sage,
@@ -71,6 +72,24 @@ def workflow_sage(cmdline_args):
             maps_delta,
             maps_rmspe,
         ) = fit_func(data, tes, mask.reshape(n_samps, 1), cmdline_args.n_procs)
+
+        if cmdline_args.clean_maps_tedana:
+            maps_t2star[np.isinf(maps_t2star)] = 500.0  # why 500?
+            maps_t2star[maps_t2star <= 0] = 1.0  # let's get rid of negative values!
+            maps_t2[np.isinf(maps_t2)] = 500.0  # why 500?
+            maps_t2[maps_t2 <= 0] = 1.0  # let's get rid of negative values!
+            # maps_t2star = apply_tedana_t2star_floor(maps_t2star, tes)
+            maps_t2star, maps_t2 = utils_sage.apply_t2s_floor(maps_t2star, maps_t2, tes)
+            maps_s0I[np.isnan(maps_s0I)] = 0.0  # why 0?
+            maps_s0II[np.isnan(maps_s0II)] = 0.0  # why 0?
+            cap_t2star = scipy.stats.scoreatpercentile(
+                maps_t2star.ravel(), 99.5, interpolation_method="lower"
+            )
+            cap_t2 = scipy.stats.scoreatpercentile(
+                maps_t2.ravel(), 99.5, interpolation_method="lower"
+            )
+            maps_t2star[maps_t2star > cap_t2star * 10] = cap_t2star
+            maps_t2[maps_t2 > cap_t2 * 10] = cap_t2
 
         io_sage.save_maps(
             [maps_t2star, maps_s0I, maps_t2, maps_s0II, maps_delta, maps_rmspe],

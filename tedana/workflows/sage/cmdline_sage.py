@@ -45,6 +45,7 @@ class Cmdline_Args:
         manacc=None,
         n_threads=1,
         n_procs=-1,
+        clean_maps_tedana=False,
     ):
         self.data_files_names = data_files_names
         self.echo_times = echo_times
@@ -74,6 +75,7 @@ class Cmdline_Args:
         self.manacc = manacc
         self.n_threads = n_threads
         self.n_procs = n_procs
+        self.clean_maps_tedana = clean_maps_tedana
 
     @staticmethod
     def _get_parser():
@@ -253,5 +255,12 @@ class Cmdline_Args:
             nargs="+",
             help=("List of manually accepted components. Requires --ctab and --mix."),
             default=None,
+        )
+        parser.add_argument(
+            "--clean-maps-tedana",
+            dest="clean_maps_tedana",
+            action="store_true",
+            help="Apply tedana cleaning to maps after computing them.",
+            default=False,
         )
         return parser
