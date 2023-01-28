@@ -14,7 +14,21 @@ LGR = logging.getLogger("GENERAL")
 
 def make_optcom_sage(data, tes, t2star_map, s0_I_map, t2_map, s0_II_map, mask):
     """
-    Computes and returns optimal combinations
+    ----- DESCRIPTION -----
+        Computes optimal combination combinations of input data based on the
+        provided T2* and T2 maps.
+    ----- INPUT -----
+        data: numpy.ndarray: (S, E, T)
+        tes: numpy.ndarray: (E,)
+        t2star_map: numpy.ndarray: (S, T)
+        s0_I_map: numpy.ndarray: (S, T)
+        t2_map: numpy.ndarray: (S, T)
+        s0_II_map: numpy.ndarray: (S, T)
+        mask: numpy.ndarray: (S, 1)
+    ----- OUTPUT -----
+        optcom_t2star: numpy.ndarray: (S, T)
+        optcom_t2: numpy.ndarray: (S, T)
+        Computes and returns optimal combinations
     """
     if data.ndim != 3:
         raise ValueError("Data should be of dimension (S x E x T)")
@@ -54,10 +68,19 @@ def make_optcom_sage(data, tes, t2star_map, s0_I_map, t2_map, s0_II_map, mask):
 
 def weights_sage(tes, t2star_map, s0_I_map, t2_map, s0_II_map):
     """
-    Computes both T2* and T2-weighted weights for each (voxel, echo)
-    pair for gradient echos
-    Inputs will either be of shape (S) or (S x T)
-    Output will be of shape (S x T) or (S) when fixed in loglin
+    ----- DESCRIPTION -----
+        Computes optimal combination echo weights for each
+        (voxel, timepoint) pair as partial derivatives of
+        the SAGE decay model.
+    ----- INPUT -----
+        tes: numpy.ndarray: (E,)
+        t2star_map: numpy.ndarray: (S, T)
+        s0_I_map: numpy.ndarray: (S, T)
+        t2_map: numpy.ndarray: (S, T)
+        s0_II_map: numpy.ndarray: (S, T)
+    ----- OUTPUT -----
+        w_t2star: numpy.ndarray: (S, E, T)
+        w_t2: numpy.ndarray: (S, E, T)
     """
     if not (
         t2star_map.shape == s0_I_map.shape
