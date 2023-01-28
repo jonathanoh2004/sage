@@ -32,10 +32,6 @@ def make_optcom_sage(data, tes, t2star_map, s0_I_map, t2_map, s0_II_map, mask):
     """
     w_t2star, w_t2 = weights_sage(tes, t2star_map, s0_I_map, t2_map, s0_II_map)
 
-    if w_t2star.ndim == 2:
-        w_t2star = np.expand_dims(w_t2star, axis=2)
-        w_t2 = np.expand_dims(w_t2, axis=2)
-
     echo_axis = 1
 
     optcom_t2star = np.sum(w_t2star * (data * np.expand_dims(mask, axis=2)), axis=echo_axis)
