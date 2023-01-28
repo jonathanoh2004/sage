@@ -5,8 +5,8 @@ from tedana.workflows.sage import config_sage
 def get_maps_loglinear(data, tes, mask, n_procs):
     """
     Returns T2* and T2 maps using least squares on log(data).
-    None value included in return to conform to same interface
-    as nonlinear fitting functions.
+    None return value and n_procs parameters are included to
+    conform to same interface as nonlinear fitting functions.
     """
 
     n_samps, n_vols = (

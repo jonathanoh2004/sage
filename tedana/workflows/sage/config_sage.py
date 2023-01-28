@@ -85,6 +85,13 @@ def get_keys_shr_mem():
     ]
 
 
+def get_axis_echos():
+    """
+    Used to determine axis to sum over in computing optimal combinations
+    """
+    return 1
+
+
 def get_required_metrics():
     """
     Used to specify metrics computed by tedana denoising functions

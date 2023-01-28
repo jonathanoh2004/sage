@@ -102,7 +102,7 @@ def workflow_sage(cmdline_args):
         ########################################################################################
 
         optcom_t2star, optcom_t2 = combine_sage.make_optcom_sage(
-            data, tes, maps_t2star, maps_s0I, maps_t2, maps_s0II, mask.reshape(n_samps, 1)
+            data, tes, maps_t2star, maps_s0I, maps_t2, maps_s0II, mask.reshape(n_samps, 1, 1)
         )
 
         optcom_t2star[~np.isfinite(optcom_t2star)] = 0
