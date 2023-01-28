@@ -30,29 +30,7 @@ def make_optcom_sage(data, tes, t2star_map, s0_I_map, t2_map, s0_II_map, mask):
         optcom_t2: numpy.ndarray: (S, T)
         Computes and returns optimal combinations
     """
-    if data.ndim != 3:
-        raise ValueError("Data should be of dimension (S x E x T)")
-    if data.shape[1] != len(tes):
-        raise ValueError(
-            "Second dimension of data ({0}) does not match number "
-            "of echoes provided (tes; {1})".format(data.shape[1], len(tes))
-        )
-    if len(tes) != 5:
-        raise ValueError(
-            "SAGE requires 5 echos for computing T2 and T2*-weighted optimal combinations"
-        )
-    if mask.shape != (data.shape[0], 1):
-        raise ValueError("Shape of mask must match (data.shape[0], 1)")
-    if not (
-        t2star_map.shape == s0_I_map.shape
-        and s0_I_map.shape == t2_map.shape
-        and t2_map.shape == s0_II_map.shape
-    ):
-        raise ValueError("Shapes of maps must conform to (S x T)")
-
     w_t2star, w_t2 = weights_sage(tes, t2star_map, s0_I_map, t2_map, s0_II_map)
-
-    assert w_t2star.ndim == w_t2.ndim
 
     if w_t2star.ndim == 2:
         w_t2star = np.expand_dims(w_t2star, axis=2)
@@ -82,14 +60,7 @@ def weights_sage(tes, t2star_map, s0_I_map, t2_map, s0_II_map):
         w_t2star: numpy.ndarray: (S, E, T)
         w_t2: numpy.ndarray: (S, E, T)
     """
-    if not (
-        t2star_map.shape == s0_I_map.shape
-        and s0_I_map.shape == t2_map.shape
-        and t2_map.shape == s0_II_map.shape
-    ):
-        raise ValueError("maps must be of same shape")
 
-    maps_ndim = s0_I_map.ndim
     tese = tes[-1]
     idx_I = tes < tese / 2
     idx_II = tes >= (tese / 2)
@@ -97,18 +68,10 @@ def weights_sage(tes, t2star_map, s0_I_map, t2_map, s0_II_map):
 
     echo_axis = 1
 
-    if maps_ndim == 1:
-        s0_I_map = s0_I_map[:, np.newaxis, np.newaxis]
-        t2star_map = t2star_map[:, np.newaxis, np.newaxis]
-        s0_II_map = s0_II_map[:, np.newaxis, np.newaxis]
-        t2_map = t2_map[:, np.newaxis, np.newaxis]
-    elif maps_ndim == 2:
-        s0_I_map = s0_I_map[:, :, np.newaxis].swapaxes(1, 2)
-        t2star_map = t2star_map[:, :, np.newaxis].swapaxes(1, 2)
-        s0_II_map = s0_II_map[:, :, np.newaxis].swapaxes(1, 2)
-        t2_map = t2_map[:, :, np.newaxis].swapaxes(1, 2)
-    else:
-        raise ValueError("Maps are of invalid shape")
+    s0_I_map = s0_I_map[:, :, np.newaxis].swapaxes(1, 2)
+    t2star_map = t2star_map[:, :, np.newaxis].swapaxes(1, 2)
+    s0_II_map = s0_II_map[:, :, np.newaxis].swapaxes(1, 2)
+    t2_map = t2_map[:, :, np.newaxis].swapaxes(1, 2)
 
     tes_indexed_I = tes[:, idx_I, :]
     tes_indexed_II = tes[:, idx_II, :]
