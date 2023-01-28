@@ -1,6 +1,7 @@
 import argparse
 import tedana.workflows.parser_utils
 from tedana.workflows.sage import parser_utils_sage
+from tedana import __version__
 
 
 class Cmdline_Args:
@@ -262,5 +263,116 @@ class Cmdline_Args:
             action="store_true",
             help="Apply tedana cleaning to maps after computing them.",
             default=False,
+        )
+        parser.add_argument(
+            "--tedpca",
+            dest="tedpca",
+            type=tedana.workflows.parser_utils.check_tedpca_value,
+            help=(
+                "Method with which to select components in TEDPCA. "
+                "PCA decomposition with the mdl, kic and aic options "
+                "is based on a Moving Average (stationary Gaussian) "
+                "process and are ordered from most to least aggressive. "
+                "Users may also provide a float from 0 to 1, "
+                "in which case components will be selected based on the "
+                "cumulative variance explained or an integer greater than 1"
+                "in which case the specificed number of components will be"
+                "selected."
+                "Default='aic'."
+            ),
+            default="aic",
+        )
+        parser.add_argument(
+            "--seed",
+            dest="fixed_seed",
+            metavar="INT",
+            type=int,
+            help=(
+                "Value used for random initialization of ICA "
+                "algorithm. Set to an integer value for "
+                "reproducible ICA results. Set to -1 for "
+                "varying results across ICA calls. "
+                "Default=42."
+            ),
+            default=42,
+        )
+        parser.add_argument(
+            "--maxit",
+            dest="maxit",
+            metavar="INT",
+            type=int,
+            help=("Maximum number of iterations for ICA."),
+            default=500,
+        )
+        parser.add_argument(
+            "--maxrestart",
+            dest="maxrestart",
+            metavar="INT",
+            type=int,
+            help=(
+                "Maximum number of attempts for ICA. If ICA "
+                "fails to converge, the fixed seed will be "
+                "updated and ICA will be run again. If "
+                "convergence is achieved before maxrestart "
+                "attempts, ICA will finish early."
+            ),
+            default=10,
+        )
+        parser.add_argument(
+            "--tedort",
+            dest="tedort",
+            action="store_true",
+            help=(
+                "Orthogonalize rejected components w.r.t. accepted components prior to denoising."
+            ),
+            default=False,
+        )
+        parser.add_argument(
+            "--gscontrol",
+            dest="gscontrol",
+            required=False,
+            action="store",
+            nargs="+",
+            help=(
+                "Perform additional denoising to remove "
+                "spatially diffuse noise. Default is None. "
+                "This argument can be single value or a space "
+                "delimited list"
+            ),
+            choices=["mir", "gsr"],
+            default=None,
+        )
+        parser.add_argument(
+            "--no-reports",
+            dest="no_reports",
+            action="store_true",
+            help=(
+                "Creates a figures folder with static component "
+                "maps, timecourse plots and other diagnostic "
+                "images and displays these in an interactive "
+                "reporting framework"
+            ),
+            default=False,
+        )
+        parser.add_argument(
+            "--png-cmap",
+            dest="png_cmap",
+            type=str,
+            help="Colormap for figures",
+            default="coolwarm",
+        )
+        parser.add_argument(
+            "--lowmem",
+            dest="low_mem",
+            action="store_true",
+            help=(
+                "Enables low-memory processing, including the "
+                "use of IncrementalPCA. May increase workflow "
+                "duration."
+            ),
+            default=False,
+        )
+        parser.add_argument(
+            "-v", "--version", action="version", version="tedana v{}".format(__version__)
         )
         return parser
