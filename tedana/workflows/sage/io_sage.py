@@ -154,16 +154,3 @@ def gen_sub_dirs(sub_dirs):
     if nested_dir is None:
         raise ValueError("invalid subdirectories")
     return nested_dir
-
-
-""" SCRAP
-io_generator.save_file(s0_I_maps, get_output_key("s0I"))
-    if s0_II_maps is not None:
-        io_generator.save_file(s0_II_maps, get_output_key("s0II"))
-    if delta_maps is not None:
-        io_generator.save_file(delta_maps, get_output_key("delta"))
-    io_generator.save_file(t2star_maps, get_output_key("t2star"))
-    io_generator.save_file(t2_maps, get_output_key("t2"))
-    if rmspe is not None:
-        io_generator.save_file(rmspe, get_output_key("rmspe"))
-"""
