@@ -20,7 +20,7 @@ def test_prep_shared_mem_with_arr():
     res_shr_mems, res_arrs_shr_mem = concurrency_sage.prep_shared_mem_with_arr(mapping)
     assert isinstance(res_shr_mems, dict)
     assert isinstance(res_arrs_shr_mem, dict)
-    for (key, val) in mapping:
+    for key in mapping:
         if mapping[key] is None:
             assert res_shr_mems[key] is None
         else:

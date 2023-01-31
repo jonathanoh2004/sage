@@ -21,13 +21,15 @@ def test__get_ind_vars():
 
 
 def _get_test_data(shape):
-    d1 = np.arange(4).reshape(shape[0], 1, 1)
-    d2 = (np.arange(3) + 1).reshape(1, shape[1], 1)
-    d3 = ((np.arange(2) + 1) * 7).reshape(1, 1, shape[2])
+    d1 = np.arange(4).reshape((shape[0], 1, 1))
+    d2 = (np.arange(3) + 1).reshape((1, shape[1], 1))
+    d3 = ((np.arange(2) + 1) * 7).reshape((1, 1, shape[2]))
+    return d1 * d2 * d3
 
 
 def _get_test_mask(shape):
-    mask = np.array([1, 1, 0, 1]).reshape(shape[0], 1, 1)
+    mask = np.array([1, 1, 0, 1]).reshape((shape[0], 1, 1))
+    return mask
 
 
 def test__get_dep_vars():
