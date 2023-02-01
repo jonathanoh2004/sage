@@ -389,7 +389,19 @@ class Cmdline_Args:
                 "compute_epi_mask",
                 "none",
             ],
-            help=("TODO"),
+            help=(
+                'The type of mask to use. A mask_type of either "custom" or "custom_restricted" '
+                "means that the provided mask will be used without modification. A mask_type of "
+                '"custom_restricted" causes the map to be restricted to the T2* and T2 maps after '
+                'computing them. A mask_type of "tedana" or "tedana_adaptive" means that the mask '
+                "will be computed the same way tedana computes it. If a mask is provided, the "
+                'resulting mask will be more restrictive. A mask_type of "tedana_adaptive" means '
+                "that the masksum used in PCA will be restricted to those echos that tedana "
+                'deems as "good". A mask_type of "compute_epi_mask" computes the mask using a '
+                'function from the nilearn library. A mask_type of "none" means that the mask '
+                'will be all-inclusive. With a mask_type of "custom" or "custom_restricted", a '
+                "mask must be provided."
+            ),
             default="custom",
         )
         return parser
