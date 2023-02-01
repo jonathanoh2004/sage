@@ -12,7 +12,7 @@ import tedana.reporting
 import tedana.io
 import tedana.stats
 import tedana.utils
-from tedana.workflows.sage import config_sage, io_sage
+from tedana.workflows.sage import config_sage, io_sage, masking_sage
 
 LGR = logging.getLogger("GENERAL")
 RepLGR = logging.getLogger("REPORT")
@@ -32,13 +32,38 @@ def denoise(
     bibtex_file,
     cmdline_args,
 ):
-
     LGR.info("workflow begun for " + data_oc_label)
     required_metrics = config_sage.get_required_metrics()
 
     data_orig = data.copy()
+    n_samps = config_sage.get_n_samps(data)
     n_echos = config_sage.get_n_echos(data)
     n_vols = config_sage.get_n_vols(data)
+
+    io_generator.save_file(masksum, "adaptive mask img")
+
+    if cmdline_args.mask_type in ["tedana", "tedana_adaptive"]:
+        # create an adaptive mask with at least 3 good echoes, for classification
+        mask_clf, masksum_clf = masking_sage.make_adaptive_mask(
+            data,
+            mask,
+            getsum=config_sage.get_getsum_masksum_clf(cmdline_args.mask_type),
+            threshold=config_sage.get_threshold_masksum_clf(),
+        )
+        if masksum_clf is None:
+            masksum_clf = masksum
+
+        LGR.debug("Retaining {}/{} samples for denoising".format(mask.sum(), n_samps))
+        RepLGR.info(
+            "A two-stage masking procedure was applied, in which a liberal mask "
+            "(including voxels with good data in at least the first echo) was used for "
+            "optimal combination, T2*/T2/S0I/S0II estimation, and denoising, while a more "
+            "conservative mask (restricted to voxels with good data in at least the first "
+            "three echoes) was used for the component classification procedure."
+        )
+        LGR.debug("Retaining {}/{} samples for classification".format(mask_clf.sum(), n_samps))
+    else:
+        mask_clf, masksum_clf = mask, masksum
 
     # regress out global signal unless explicitly not desired
     if "gsr" in gscontrol:
@@ -53,8 +78,8 @@ def denoise(
             data,
             data_oc,
             None,
-            mask,
-            masksum,
+            mask_clf,
+            masksum_clf,
             None,
             io_generator,
             tes=tes,
@@ -65,7 +90,7 @@ def denoise(
             low_mem=cmdline_args.low_mem,
         )
         if cmdline_args.verbose:
-            io_generator.save_file(tedana.utils.unmask(dd, mask), "whitened img")
+            io_generator.save_file(tedana.utils.unmask(dd, mask_clf), "whitened img")
 
         # Perform ICA, calculate metrics, and apply decision tree
         # Restart when ICA fails to converge or too few BOLD components found
@@ -92,7 +117,7 @@ def denoise(
                 data,
                 data_oc,
                 mmix,
-                masksum,
+                masksum_clf,
                 tes,
                 io_generator,
                 "ICA",
@@ -120,7 +145,7 @@ def denoise(
                 data,
                 data_oc,
                 mmix,
-                masksum,
+                masksum_clf,
                 tes,
                 io_generator,
                 "ICA",
@@ -244,18 +269,6 @@ def denoise(
             png_cmap=cmdline_args.png_cmap,
         )
 
-        img_t_r = io_generator.reference_img.header.get_zooms()[-1]
-        if img_t_r == 0:
-            raise IOError(
-                "Dataset has a TR of 0. This indicates incorrect"
-                " header information. To correct this, we recommend"
-                " using this snippet:"
-                "\n"
-                "https://gist.github.com/jbteves/032c87aeb080dd8de8861cb151bff5d6"
-                "\n"
-                "to correct your TR to the value it should be."
-            )
-
         if sys.version_info.major == 3 and sys.version_info.minor < 6:
             LGR.warn(
                 "Reports requested but Python version is less than "
@@ -263,23 +276,6 @@ def denoise(
             )
         else:
             LGR.info("Generating dynamic report")
+            img_t_r = io_generator.reference_img.header.get_zooms()[-1]
             tedana.reporting.generate_report(io_generator, tr=img_t_r)
     LGR.info("workflow completed for " + data_oc_label)
-
-
-"""
-# Create an adaptive mask with at least 1 good echo, for denoising
-    mask_denoise, masksum_denoise = utils.make_adaptive_mask(
-        catd,
-        mask=mask,
-        getsum=True,
-        threshold=1,
-    )
-    LGR.debug("Retaining {}/{} samples for denoising".format(mask_denoise.sum(), n_samp))
-    io_generator.save_file(masksum_denoise, "adaptive mask img")
-
-    # Create an adaptive mask with at least 3 good echoes, for classification
-    masksum_clf = masksum_denoise.copy()
-    masksum_clf[masksum_clf < 3] = 0
-    mask_clf = masksum_clf.astype(bool)
-"""

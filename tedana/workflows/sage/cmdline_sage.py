@@ -21,6 +21,7 @@ class Cmdline_Args:
         data_files_names,
         echo_times,
         out_dir="outputs",
+        mask_type="custom",
         mask_file_name=None,
         convention="bids",
         prefix="",
@@ -51,6 +52,7 @@ class Cmdline_Args:
         self.data_files_names = data_files_names
         self.echo_times = echo_times
         self.out_dir = out_dir
+        self.mask_type = mask_type
         self.mask_file_name = mask_file_name
         self.convention = convention
         self.prefix = prefix
@@ -107,7 +109,7 @@ class Cmdline_Args:
             required=True,
         )
         parser.add_argument(
-            "--mask",
+            "--mask-file-name",
             dest="mask_file_name",
             metavar="FILE",
             type=lambda x: tedana.workflows.parser_utils.is_valid_file(parser, x),
@@ -374,5 +376,20 @@ class Cmdline_Args:
         )
         parser.add_argument(
             "-v", "--version", action="version", version="tedana v{}".format(__version__)
+        )
+        parser.add_argument(
+            "--mask-type",
+            dest="mask_type",
+            action="store",
+            choices=[
+                "custom",
+                "custom_restricted",
+                "tedana",
+                "tedana_adaptive",
+                "compute_epi_mask",
+                "none",
+            ],
+            help=("TODO"),
+            default="custom",
         )
         return parser

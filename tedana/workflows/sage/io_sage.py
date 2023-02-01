@@ -5,7 +5,7 @@ import numpy as np
 import nilearn.image
 import tedana.io
 import tedana.utils
-from tedana.workflows.sage import config_sage
+from tedana.workflows.sage import config_sage, masking_sage
 
 LGR = logging.getLogger("GENERAL")
 
@@ -24,14 +24,46 @@ def get_data(data, tes, tslice=None):
     return data, ref_img
 
 
-def get_mask(mask, data):
-    if mask is not None:
-        # load provided mask
-        mask = nilearn.image.load_img(mask).get_fdata().reshape(-1).astype(bool)
+def check_header(io_generator):
+    img_t_r = io_generator.reference_img.header.get_zooms()[-1]
+    if img_t_r == 0:
+        raise IOError(
+            "Dataset has a TR of 0. This indicates incorrect"
+            " header information. To correct this, we recommend"
+            " using this snippet:"
+            "\n"
+            "https://gist.github.com/jbteves/032c87aeb080dd8de8861cb151bff5d6"
+            "\n"
+            "to correct your TR to the value it should be."
+        )
+
+
+def get_mask(data, mask_type, mask_file_name, ref_img, getsum=False, threshold=1):
+    if mask_type in ["custom", "custom_restricted"]:
+        if mask_file_name is None:
+            raise ValueError(
+                'Mask must be provided when mask_type is "custom" or "custom_restricted"'
+            )
+        mask_res = nilearn.image.load_img(mask_file_name).get_fdata().reshape(-1)
+    elif mask_type in ["tedana", "tedana_adaptive"]:
+        mask = (
+            nilearn.image.load_img(mask_file_name).get_fdata().reshape(-1)
+            if mask_file_name is not None
+            else None
+        )
+        # create an adaptive mask with at least 1 good echo the tedana way
+        mask_res, _ = masking_sage.make_adaptive_mask(
+            data,
+            mask=mask,
+            getsum=getsum,
+            threshold=threshold,
+        )
+    elif mask_type == "compute_epi_mask":
+        mask_res = masking_sage.get_tedana_default_mask(ref_img, data)
     else:
-        # include all voxels
-        mask = np.ones(data.shape[0]).astype(bool)
-    return mask
+        mask_res = np.ones(data.shape[0])
+    mask_res = mask_res.astype(bool)
+    return mask_res
 
 
 def get_gscontrol(gscontrol):

@@ -85,6 +85,19 @@ def get_keys_shr_mem():
     ]
 
 
+def get_threshold_masksum_clf():
+    return 3
+
+
+def get_getsum_masksum_clf(mask_type):
+    if mask_type == "tedana":
+        return False
+    elif mask_type == "tedana_adaptive":
+        return True
+    else:
+        return None
+
+
 def get_required_metrics():
     """
     Used to specify metrics computed by tedana denoising functions
