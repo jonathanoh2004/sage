@@ -58,12 +58,18 @@ def _mock_prep_shared_mem_with_name(shr_mem, shape, dtype):
 def test_nonlinear_4param_sage(mock1, mock2, mock3):
     mock1.side_effect = _mock_curve_fit
     mock3.side_effect = _mock_prep_shared_mem_with_name
-    nonlin_fitter = nonlinear_4param_sage.Get_Maps_Nonlinear_4Param(n_param=4)
-    nonlin_fitter.get_bounds = MagicMock()
-    nonlin_fitter.get_max_iter = MagicMock()
-    nonlin_fitter.get_guesses = MagicMock()
-    nonlin_fitter.get_model = MagicMock(return_value=lambda: None)
-    nonlin_fitter.eval_model = MagicMock(return_value=0)
+    nonlin_fitter_4param = nonlinear_4param_sage.Get_Maps_Nonlinear_4Param(n_param=4)
+    nonlin_fitter_4param.get_bounds = MagicMock()
+    nonlin_fitter_4param.get_max_iter = MagicMock()
+    nonlin_fitter_4param.get_guesses = MagicMock()
+    nonlin_fitter_4param.get_model = MagicMock(return_value=lambda: None)
+    nonlin_fitter_4param.eval_model = MagicMock(return_value=0)
+    nonlin_fitter_3param = nonlinear_3param_sage.Get_Maps_Nonlinear_3Param(n_param=3)
+    nonlin_fitter_3param.get_bounds = MagicMock()
+    nonlin_fitter_3param.get_max_iter = MagicMock()
+    nonlin_fitter_3param.get_guesses = MagicMock()
+    nonlin_fitter_3param.get_model = MagicMock(return_value=lambda: None)
+    nonlin_fitter_3param.eval_model = MagicMock(return_value=0)
 
     shape = (3, 3, 3)
     dtype = np.float64
@@ -82,65 +88,35 @@ def test_nonlinear_4param_sage(mock1, mock2, mock3):
     s0II_res = ""
     rmspe_res = ""
 
-    nonlin_fitter.fit_nonlinear_sage(
-        shape,
-        dtype,
-        t_start,
-        t_end,
-        Y,
-        X,
-        r2star_guess,
-        s0I_guess,
-        r2_guess,
-        s0II_guess,
-        delta_res,
-        r2star_res,
-        s0I_res,
-        r2_res,
-        s0II_res,
-        rmspe_res,
-    )
-
     num_calls_exp = 3
     num_calls_curve_fit_exp = 9
 
-    assert mock3.call_count == num_calls_exp
-    assert mock2.call_count == num_calls_exp
-    assert mock1.call_count == num_calls_curve_fit_exp
+    for i, nonlin_fitter in enumerate([nonlin_fitter_4param, nonlin_fitter_3param]):
+        nonlin_fitter.fit_nonlinear_sage(
+            shape,
+            dtype,
+            t_start,
+            t_end,
+            Y,
+            X,
+            r2star_guess,
+            s0I_guess,
+            r2_guess,
+            s0II_guess,
+            delta_res,
+            r2star_res,
+            s0I_res,
+            r2_res,
+            s0II_res,
+            rmspe_res,
+        )
 
-    assert nonlin_fitter.get_bounds.call_count == 1
-    assert nonlin_fitter.get_max_iter.call_count == 1
-    assert nonlin_fitter.get_guesses.call_count == 9
-    assert nonlin_fitter.get_model.call_count == 9
-    assert nonlin_fitter.eval_model.call_count == 9
+        assert mock3.call_count == num_calls_exp * (i + 1)
+        assert mock2.call_count == num_calls_exp * (i + 1)
+        assert mock1.call_count == num_calls_curve_fit_exp * (i + 1)
 
-
-"""
-shape
-dtype
-t_start
-t_end
-Y
-X
-r2star_guess
-s0I_guess
-r2_guess
-s0II_guess
-delta_res
-r2star_res
-s0I_res
-r2_res
-s0II_res
-rmspe_res
-
-
-
-prep_shared_mem_with_name -> MOCK
-curve_fit -> MOCK
-close_shr_mem -> MOCK
-get_bounds
-get_max_iter
-get_model
-get_guesses
-eval_model
-"""
+        assert nonlin_fitter.get_bounds.call_count == 1
+        assert nonlin_fitter.get_max_iter.call_count == 1
+        assert nonlin_fitter.get_guesses.call_count == 9
+        assert nonlin_fitter.get_model.call_count == 9
+        assert nonlin_fitter.eval_model.call_count == 9
