@@ -1,12 +1,6 @@
-import os.path
-
 import numpy as np
-import pytest
-import nilearn
 import multiprocessing
 from multiprocessing.shared_memory import SharedMemory
-from tedana import io, utils
-from tedana.tests.utils_sage import get_test_data_path_sage
 from tedana.workflows.sage import concurrency_sage
 
 
@@ -33,14 +27,17 @@ def test_prep_shared_mem_with_arr():
 
 
 def test_prep_shared_mem_with_name():
+    size = 3
+    dtype = np.float64
+    shape = (size,)
+    itemsize = np.dtype(dtype).itemsize
     shms = {
-        "a": SharedMemory(create=True, size=1),
-        "b": SharedMemory(create=True, size=1),
-        "c": SharedMemory(create=True, size=1),
+        "a": SharedMemory(create=True, size=itemsize * size),
+        "b": SharedMemory(create=True, size=itemsize * size),
+        "c": SharedMemory(create=True, size=itemsize * size),
     }
     mapping = {"A": shms["a"].name, "B": shms["b"].name, "C": shms["c"].name}
-    shape = (3,)
-    dtype = np.float64
+
     res_shr_mems, res_arrs_shr_mem = concurrency_sage.prep_shared_mem_with_name(
         mapping, shape, dtype
     )

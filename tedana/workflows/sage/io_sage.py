@@ -24,20 +24,6 @@ def get_data(data, tes, tslice=None):
     return data, ref_img
 
 
-def check_header(io_generator):
-    img_t_r = io_generator.reference_img.header.get_zooms()[-1]
-    if img_t_r == 0:
-        raise IOError(
-            "Dataset has a TR of 0. This indicates incorrect"
-            " header information. To correct this, we recommend"
-            " using this snippet:"
-            "\n"
-            "https://gist.github.com/jbteves/032c87aeb080dd8de8861cb151bff5d6"
-            "\n"
-            "to correct your TR to the value it should be."
-        )
-
-
 def get_mask(data, mask_type, mask_file_name, ref_img, getsum=False, threshold=1):
     if mask_type in ["custom", "custom_restricted"]:
         if mask_file_name is None:
@@ -70,21 +56,6 @@ def get_gscontrol(gscontrol):
     if not isinstance(gscontrol, list):
         gscontrol = [gscontrol]
     return gscontrol
-
-
-def get_mixm(mixm, io_generator):
-    if mixm is not None and os.path.isfile(mixm):
-        mixm = os.path.abspath(mixm)
-        # Allow users to re-run on same folder
-        mixing_name = io_generator.get_name("ICA mixing tsv")
-        if mixm != mixing_name:
-            shutil.copyfile(mixm, mixing_name)
-            shutil.copyfile(mixm, os.path.join(io_generator.out_dir, os.path.basename(mixm)))
-        return mixm
-    elif mixm is not None:
-        raise IOError("Argument 'mixm' must be an existing file.")
-    else:
-        return None
 
 
 def get_rerun_maps(cmdline_args, ref_img):
@@ -143,16 +114,19 @@ def get_rerun_maps(cmdline_args, ref_img):
     return rerun_imgs
 
 
-def get_io_generator(ref_img, convention, out_dir, prefix, verbose):
-    io_generator = tedana.io.OutputGenerator(
-        ref_img,
-        convention=convention,
-        out_dir=out_dir,
-        prefix=prefix,
-        config="auto",
-        verbose=verbose,
-    )
-    return io_generator
+def get_mixm(mixm, io_generator):
+    if mixm is not None and os.path.isfile(mixm):
+        mixm = os.path.abspath(mixm)
+        # Allow users to re-run on same folder
+        mixing_name = io_generator.get_name("ICA mixing tsv")
+        if mixm != mixing_name:
+            shutil.copyfile(mixm, mixing_name)
+            shutil.copyfile(mixm, os.path.join(io_generator.out_dir, os.path.basename(mixm)))
+        return mixm
+    elif mixm is not None:
+        raise IOError("Argument 'mixm' must be an existing file.")
+    else:
+        return None
 
 
 def save_maps(img_maps, img_keys, io_generator):
@@ -186,3 +160,29 @@ def gen_sub_dirs(sub_dirs):
     if nested_dir is None:
         raise ValueError("invalid subdirectories")
     return nested_dir
+
+
+def get_io_generator(ref_img, convention, out_dir, prefix, verbose):
+    io_generator = tedana.io.OutputGenerator(
+        ref_img,
+        convention=convention,
+        out_dir=out_dir,
+        prefix=prefix,
+        config="auto",
+        verbose=verbose,
+    )
+    return io_generator
+
+
+def check_header(io_generator):
+    img_t_r = io_generator.reference_img.header.get_zooms()[-1]
+    if img_t_r == 0:
+        raise IOError(
+            "Dataset has a TR of 0. This indicates incorrect"
+            " header information. To correct this, we recommend"
+            " using this snippet:"
+            "\n"
+            "https://gist.github.com/jbteves/032c87aeb080dd8de8861cb151bff5d6"
+            "\n"
+            "to correct your TR to the value it should be."
+        )

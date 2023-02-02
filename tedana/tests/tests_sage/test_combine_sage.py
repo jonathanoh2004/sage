@@ -16,6 +16,7 @@ def test_weights_sage():
     idx_I = tes_in < tes_in[-1] / 2
     idx_II = tes_in > tes_in[-1] / 2
 
+    ##### Compute Expected Values #####
     s0I, s0II, delta, r2star, r2, t, tese = sympy.symbols(
         "s_0I s_0II delta r_2^* r_2 tau TE_SE", real=True
     )
@@ -43,9 +44,6 @@ def test_weights_sage():
         tes_in[np.newaxis, idx_I, np.newaxis],
     )
 
-    if w_t2_1 == 0:
-        w_t2_1 = np.zeros((2, tes_in[idx_I].size, 2))
-
     w_t2star_2 = f_e2_r2star(
         s0II_in[:, np.newaxis, :],
         r2star_in[:, np.newaxis, :],
@@ -60,8 +58,9 @@ def test_weights_sage():
         tes_in[np.newaxis, idx_II, np.newaxis],
         tes_in[-1],
     )
-    print(w_t2_1)
-    print(w_t2_2)
+
+    if w_t2_1 == 0:
+        w_t2_1 = np.zeros((2, tes_in[idx_I].size, 2))
 
     w_t2star_exp = np.concatenate([w_t2star_1, w_t2star_2], axis=1)
     w_t2_exp = np.concatenate([w_t2_1, w_t2_2], axis=1)
@@ -69,6 +68,7 @@ def test_weights_sage():
     w_t2star_exp = w_t2star_exp / np.expand_dims(np.sum(w_t2star_exp, axis=1), axis=1)
     w_t2_exp = w_t2_exp / np.expand_dims(np.sum(w_t2_exp, axis=1), axis=1)
 
+    ##### Compute Test Values #####
     w_t2star_test, w_t2_test = combine_sage.weights_sage(
         tes_in, 1 / r2star_in, s0I_in, 1 / r2_in, s0II_in
     )

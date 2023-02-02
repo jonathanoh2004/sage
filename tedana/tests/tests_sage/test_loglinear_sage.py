@@ -1,12 +1,5 @@
-import os.path
-
 import numpy as np
 import sympy
-import pytest
-import nilearn
-
-from tedana import io, utils
-from tedana.tests.utils_sage import get_test_data_path_sage
 from tedana.workflows.sage import loglinear_sage
 
 

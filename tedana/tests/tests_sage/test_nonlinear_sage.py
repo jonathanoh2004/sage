@@ -1,13 +1,5 @@
-import os.path
 from unittest.mock import patch, call, MagicMock
 import numpy as np
-import pytest
-import nilearn
-import multiprocessing
-from multiprocessing.shared_memory import SharedMemory
-
-from tedana import io, utils
-from tedana.tests.utils_sage import get_test_data_path_sage
 from tedana.workflows.sage import nonlinear_sage, nonlinear_3param_sage, nonlinear_4param_sage
 
 
