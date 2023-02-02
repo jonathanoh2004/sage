@@ -2,6 +2,7 @@ import logging
 import numpy as np
 from nilearn.masking import compute_epi_mask
 import tedana.io, tedana.utils
+from tedana.workflows.sage import config_sage
 
 LGR = logging.getLogger("GENERAL")
 RepLGR = logging.getLogger("REPORT")
@@ -40,3 +41,30 @@ def make_adaptive_mask(data, mask, getsum=False, threshold=1):
         )
         masksum = None
     return mask, masksum
+
+
+def get_adaptive_mask_clf(mask, masksum, data, cmdline_args):
+    if cmdline_args.mask_type in ["tedana", "tedana_adaptive"]:
+        n_samps = config_sage.get_n_samps(data)
+        # create an adaptive mask with at least 3 good echoes, for classification
+        mask_clf, masksum_clf = make_adaptive_mask(
+            data,
+            mask,
+            getsum=config_sage.get_getsum_masksum_clf(cmdline_args.mask_type),
+            threshold=config_sage.get_threshold_masksum_clf(),
+        )
+        if masksum_clf is None:
+            masksum_clf = masksum
+
+        LGR.debug("Retaining {}/{} samples for denoising".format(mask.sum(), n_samps))
+        RepLGR.info(
+            "A two-stage masking procedure was applied, in which a liberal mask "
+            "(including voxels with good data in at least the first echo) was used for "
+            "optimal combination, T2*/T2/S0I/S0II estimation, and denoising, while a more "
+            "conservative mask (restricted to voxels with good data in at least the first "
+            "three echoes) was used for the component classification procedure."
+        )
+        LGR.debug("Retaining {}/{} samples for classification".format(mask_clf.sum(), n_samps))
+    else:
+        mask_clf, masksum_clf = mask, masksum
+    return mask_clf, masksum_clf

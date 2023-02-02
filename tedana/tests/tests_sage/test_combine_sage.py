@@ -1,9 +1,35 @@
 import numpy as np
 import sympy
+from unittest.mock import patch
 
 from tedana.workflows.sage import combine_sage
 
 # https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4254163/
+
+
+@patch("tedana.workflows.sage.combine_sage.weights_sage", spec_set=combine_sage.weights_sage)
+def test_make_optcom_sage(mock_weights_sage):
+    w_t2star = np.arange(20).reshape(2, 5, 2) * 0.05
+    w_t2 = np.arange(20).reshape(2, 5, 2) * 0.075
+    mock_weights_sage.side_effect = lambda arg1, arg2, arg3, arg4, arg5: [w_t2star, w_t2]
+    data = np.ones((2, 5, 2))
+    tes = np.array([5, 4, 3, 2, 1])
+    mask = np.array([1, 0])[:, np.newaxis]
+    t2star, s0I, t2, s0II = (
+        np.ones((2, 5, 2)),
+        np.ones((2, 5, 2)),
+        np.ones((2, 5, 2)),
+        np.ones((2, 5, 2)),
+    )
+
+    optcom_t2star_test, optcom_t2_test = combine_sage.make_optcom_sage(
+        data, tes, t2star, s0I, t2, s0II, mask
+    )
+
+    optcom_t2star_exp = np.array([[1.0, 1.25], [0.0, 0.0]])
+    optcom_t2_exp = np.array([[1.5, 1.875], [0.0, 0.0]])
+    np.testing.assert_allclose(optcom_t2star_test, optcom_t2star_exp, rtol=1e-12)
+    np.testing.assert_allclose(optcom_t2_test, optcom_t2_exp, rtol=1e-12)
 
 
 def test_weights_sage():

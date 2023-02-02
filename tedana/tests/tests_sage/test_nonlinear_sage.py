@@ -1,6 +1,6 @@
-from unittest.mock import patch, call, MagicMock
+from unittest.mock import patch, MagicMock
 import numpy as np
-from tedana.workflows.sage import nonlinear_sage, nonlinear_3param_sage, nonlinear_4param_sage
+from tedana.workflows.sage import nonlinear_3param_sage, nonlinear_4param_sage
 
 
 def _mock_curve_fit(model, X, Y, p0, bounds, ftol, xtol, max_nfev):
@@ -47,21 +47,9 @@ def _mock_prep_shared_mem_with_name(shr_mem, shape, dtype):
     spec_set=(lambda: {"": None}),
 )
 @patch("tedana.workflows.sage.nonlinear_sage.curve_fit", spec_set=_mock_curve_fit)
-def test_nonlinear_4param_sage(mock1, mock2, mock3):
-    mock1.side_effect = _mock_curve_fit
-    mock3.side_effect = _mock_prep_shared_mem_with_name
-    nonlin_fitter_4param = nonlinear_4param_sage.Get_Maps_Nonlinear_4Param(n_param=4)
-    nonlin_fitter_4param.get_bounds = MagicMock()
-    nonlin_fitter_4param.get_max_iter = MagicMock()
-    nonlin_fitter_4param.get_guesses = MagicMock()
-    nonlin_fitter_4param.get_model = MagicMock(return_value=lambda: None)
-    nonlin_fitter_4param.eval_model = MagicMock(return_value=0)
-    nonlin_fitter_3param = nonlinear_3param_sage.Get_Maps_Nonlinear_3Param(n_param=3)
-    nonlin_fitter_3param.get_bounds = MagicMock()
-    nonlin_fitter_3param.get_max_iter = MagicMock()
-    nonlin_fitter_3param.get_guesses = MagicMock()
-    nonlin_fitter_3param.get_model = MagicMock(return_value=lambda: None)
-    nonlin_fitter_3param.eval_model = MagicMock(return_value=0)
+def test_nonlinear_sage(mock_curve_fit, mock_close_shr_mem, mock_prep_shared_mem_with_name):
+    mock_curve_fit.side_effect = _mock_curve_fit
+    mock_prep_shared_mem_with_name.side_effect = _mock_prep_shared_mem_with_name
 
     shape = (3, 3, 3)
     dtype = np.float64
@@ -83,6 +71,15 @@ def test_nonlinear_4param_sage(mock1, mock2, mock3):
     num_calls_exp = 3
     num_calls_curve_fit_exp = 9
 
+    nonlin_fitter_4param = nonlinear_4param_sage.Get_Maps_Nonlinear_4Param(n_param=4)
+    nonlin_fitter_3param = nonlinear_3param_sage.Get_Maps_Nonlinear_3Param(n_param=3)
+    for nonlin_fitter in [nonlin_fitter_4param, nonlin_fitter_3param]:
+        nonlin_fitter.get_bounds = MagicMock()
+        nonlin_fitter.get_max_iter = MagicMock()
+        nonlin_fitter.get_guesses = MagicMock()
+        nonlin_fitter.get_model = MagicMock(return_value=lambda: None)
+        nonlin_fitter.eval_model = MagicMock(return_value=0)
+
     for i, nonlin_fitter in enumerate([nonlin_fitter_4param, nonlin_fitter_3param]):
         nonlin_fitter.fit_nonlinear_sage(
             shape,
@@ -103,9 +100,9 @@ def test_nonlinear_4param_sage(mock1, mock2, mock3):
             rmspe_res,
         )
 
-        assert mock3.call_count == num_calls_exp * (i + 1)
-        assert mock2.call_count == num_calls_exp * (i + 1)
-        assert mock1.call_count == num_calls_curve_fit_exp * (i + 1)
+        assert mock_prep_shared_mem_with_name.call_count == num_calls_exp * (i + 1)
+        assert mock_close_shr_mem.call_count == num_calls_exp * (i + 1)
+        assert mock_curve_fit.call_count == num_calls_curve_fit_exp * (i + 1)
 
         assert nonlin_fitter.get_bounds.call_count == 1
         assert nonlin_fitter.get_max_iter.call_count == 1

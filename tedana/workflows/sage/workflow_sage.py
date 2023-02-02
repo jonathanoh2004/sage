@@ -120,6 +120,9 @@ def workflow_sage(cmdline_args):
         )
 
         masksum = mask * n_echos
+        mask_clf, masksum_clf = masking_sage.get_adaptive_mask_clf(
+            mask, masksum, data, cmdline_args
+        )
 
         mixm = io_sage.get_mixm(cmdline_args.rerun_mixm, io_generator)
 
@@ -131,6 +134,8 @@ def workflow_sage(cmdline_args):
             tes,
             mask,
             masksum,
+            mask_clf,
+            masksum_clf,
             gscontrol,
             mixm,
             repname,

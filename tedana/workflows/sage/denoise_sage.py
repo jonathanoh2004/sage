@@ -12,7 +12,7 @@ import tedana.reporting
 import tedana.io
 import tedana.stats
 import tedana.utils
-from tedana.workflows.sage import config_sage, io_sage, masking_sage
+from tedana.workflows.sage import config_sage, io_sage
 
 LGR = logging.getLogger("GENERAL")
 RepLGR = logging.getLogger("REPORT")
@@ -26,6 +26,8 @@ def denoise(
     tes,
     mask,
     masksum,
+    mask_clf,
+    masksum_clf,
     gscontrol,
     mixm,
     repname,
@@ -36,34 +38,11 @@ def denoise(
     required_metrics = config_sage.get_required_metrics()
 
     data_orig = data.copy()
-    n_samps = config_sage.get_n_samps(data)
     n_echos = config_sage.get_n_echos(data)
     n_vols = config_sage.get_n_vols(data)
 
     io_generator.save_file(masksum, "adaptive mask img")
-
-    if cmdline_args.mask_type in ["tedana", "tedana_adaptive"]:
-        # create an adaptive mask with at least 3 good echoes, for classification
-        mask_clf, masksum_clf = masking_sage.make_adaptive_mask(
-            data,
-            mask,
-            getsum=config_sage.get_getsum_masksum_clf(cmdline_args.mask_type),
-            threshold=config_sage.get_threshold_masksum_clf(),
-        )
-        if masksum_clf is None:
-            masksum_clf = masksum
-
-        LGR.debug("Retaining {}/{} samples for denoising".format(mask.sum(), n_samps))
-        RepLGR.info(
-            "A two-stage masking procedure was applied, in which a liberal mask "
-            "(including voxels with good data in at least the first echo) was used for "
-            "optimal combination, T2*/T2/S0I/S0II estimation, and denoising, while a more "
-            "conservative mask (restricted to voxels with good data in at least the first "
-            "three echoes) was used for the component classification procedure."
-        )
-        LGR.debug("Retaining {}/{} samples for classification".format(mask_clf.sum(), n_samps))
-    else:
-        mask_clf, masksum_clf = mask, masksum
+    io_generator.save_file(masksum_clf, "adaptive mask clf img")
 
     # regress out global signal unless explicitly not desired
     if "gsr" in gscontrol:
@@ -197,27 +176,7 @@ def denoise(
     mmix_orig = mmix.copy()
 
     if cmdline_args.tedort:
-        acc_idx = comptable.loc[~comptable.classification.str.contains("rejected")].index.values
-        rej_idx = comptable.loc[comptable.classification.str.contains("rejected")].index.values
-        acc_ts = mmix[:, acc_idx]
-        rej_ts = mmix[:, rej_idx]
-        betas = np.linalg.lstsq(acc_ts, rej_ts, rcond=None)[0]
-        pred_rej_ts = np.dot(acc_ts, betas)
-        resid = rej_ts - pred_rej_ts
-        mmix[:, rej_idx] = resid
-        comp_names = [
-            tedana.io.add_decomp_prefix(comp, prefix="ica", max_value=comptable.index.max())
-            for comp in comptable.index.values
-        ]
-
-        mixing_df = pd.DataFrame(data=mmix, columns=comp_names)
-        io_generator.save_file(mixing_df, "ICA orthogonalized mixing tsv")
-
-        RepLGR.info(
-            "Rejected components' time series were then "
-            "orthogonalized with respect to accepted components' time "
-            "series."
-        )
+        tedort(comptable, mmix, io_generator)
 
     tedana.io.writeresults(
         data_oc,
@@ -279,3 +238,27 @@ def denoise(
             img_t_r = io_generator.reference_img.header.get_zooms()[-1]
             tedana.reporting.generate_report(io_generator, tr=img_t_r)
     LGR.info("workflow completed for " + data_oc_label)
+
+
+def tedort(comptable, mmix, io_generator):
+    acc_idx = comptable.loc[~comptable.classification.str.contains("rejected")].index.values
+    rej_idx = comptable.loc[comptable.classification.str.contains("rejected")].index.values
+    acc_ts = mmix[:, acc_idx]
+    rej_ts = mmix[:, rej_idx]
+    betas = np.linalg.lstsq(acc_ts, rej_ts, rcond=None)[0]
+    pred_rej_ts = np.dot(acc_ts, betas)
+    resid = rej_ts - pred_rej_ts
+    mmix[:, rej_idx] = resid
+    comp_names = [
+        tedana.io.add_decomp_prefix(comp, prefix="ica", max_value=comptable.index.max())
+        for comp in comptable.index.values
+    ]
+
+    mixing_df = pd.DataFrame(data=mmix, columns=comp_names)
+    io_generator.save_file(mixing_df, "ICA orthogonalized mixing tsv")
+
+    RepLGR.info(
+        "Rejected components' time series were then "
+        "orthogonalized with respect to accepted components' time "
+        "series."
+    )
