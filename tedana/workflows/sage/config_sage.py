@@ -1,7 +1,7 @@
 import os.path
 import tedana.bibtex
 from tedana.workflows.sage import nonlinear_3param_sage, nonlinear_4param_sage, loglinear_sage
-from tedana.workflows.sage.combine_sage import make_optcom_sage
+from tedana.workflows.sage import combine_sage
 
 
 def get_fittypes():
@@ -140,7 +140,7 @@ def get_func_maps(fittype):
 
 
 def get_optcom_func():
-    return make_optcom_sage
+    return combine_sage.make_optcom_sage
 
 
 def get_shape_maps(data):

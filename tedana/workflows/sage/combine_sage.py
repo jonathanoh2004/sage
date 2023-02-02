@@ -3,7 +3,7 @@ Functions to optimally combine data across echoes.
 """
 import logging
 import numpy as np
-import config_sage
+from tedana.workflows.sage import config_sage
 
 LGR = logging.getLogger("GENERAL")
 
@@ -25,7 +25,7 @@ def make_optcom_sage(data, tes, t2star_map, s0I_map, t2_map, s0II_map, mask):
         s0I_map: numpy.ndarray: (S, T)
         t2_map: numpy.ndarray: (S, T)
         s0II_map: numpy.ndarray: (S, T)
-        mask: numpy.ndarray: (S, 1)
+        mask: numpy.ndarray: (S, 1, 1)
     ----- OUTPUT -----
         optcom_t2star: numpy.ndarray: (S, T)
         optcom_t2: numpy.ndarray: (S, T)

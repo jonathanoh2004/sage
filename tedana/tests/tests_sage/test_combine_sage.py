@@ -11,10 +11,10 @@ from tedana.workflows.sage import combine_sage
 def test_make_optcom_sage(mock_weights_sage):
     w_t2star = np.arange(20).reshape(2, 5, 2) * 0.05
     w_t2 = np.arange(20).reshape(2, 5, 2) * 0.075
-    mock_weights_sage.side_effect = lambda arg1, arg2, arg3, arg4, arg5: [w_t2star, w_t2]
+    mock_weights_sage.side_effect = lambda arg1, arg2, arg3, arg4, arg5, arg6: [w_t2star, w_t2]
     data = np.ones((2, 5, 2))
     tes = np.array([5, 4, 3, 2, 1])
-    mask = np.array([1, 0])[:, np.newaxis]
+    mask = np.array([1, 0])[:, np.newaxis, np.newaxis]
     t2star, s0I, t2, s0II = (
         np.ones((2, 5, 2)),
         np.ones((2, 5, 2)),
@@ -94,9 +94,11 @@ def test_weights_sage():
     w_t2star_exp = w_t2star_exp / np.expand_dims(np.sum(w_t2star_exp, axis=1), axis=1)
     w_t2_exp = w_t2_exp / np.expand_dims(np.sum(w_t2_exp, axis=1), axis=1)
 
+    dummy_data = np.ones((2, 5, 2))
+
     ##### Compute Test Values #####
     w_t2star_test, w_t2_test = combine_sage.weights_sage(
-        tes_in, 1 / r2star_in, s0I_in, 1 / r2_in, s0II_in
+        dummy_data, tes_in, 1 / r2star_in, s0I_in, 1 / r2_in, s0II_in
     )
 
     np.testing.assert_allclose(w_t2star_test, w_t2star_exp, rtol=1e-12)
