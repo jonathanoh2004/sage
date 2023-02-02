@@ -26,19 +26,23 @@ def denoise(
     tes,
     mask,
     masksum,
+    mask_clf,
+    masksum_clf,
     gscontrol,
     mixm,
     repname,
     bibtex_file,
     cmdline_args,
 ):
-
     LGR.info("workflow begun for " + data_oc_label)
     required_metrics = config_sage.get_required_metrics()
 
     data_orig = data.copy()
     n_echos = config_sage.get_n_echos(data)
     n_vols = config_sage.get_n_vols(data)
+
+    io_generator.save_file(masksum, "adaptive mask img")
+    io_generator.save_file(masksum_clf, "adaptive mask clf img")
 
     # regress out global signal unless explicitly not desired
     if "gsr" in gscontrol:
@@ -53,8 +57,8 @@ def denoise(
             data,
             data_oc,
             None,
-            mask,
-            masksum,
+            mask_clf,
+            masksum_clf,
             None,
             io_generator,
             tes=tes,
@@ -65,7 +69,7 @@ def denoise(
             low_mem=cmdline_args.low_mem,
         )
         if cmdline_args.verbose:
-            io_generator.save_file(tedana.utils.unmask(dd, mask), "whitened img")
+            io_generator.save_file(tedana.utils.unmask(dd, mask_clf), "whitened img")
 
         # Perform ICA, calculate metrics, and apply decision tree
         # Restart when ICA fails to converge or too few BOLD components found
@@ -92,7 +96,7 @@ def denoise(
                 data,
                 data_oc,
                 mmix,
-                masksum,
+                masksum_clf,
                 tes,
                 io_generator,
                 "ICA",
@@ -120,7 +124,7 @@ def denoise(
                 data,
                 data_oc,
                 mmix,
-                masksum,
+                masksum_clf,
                 tes,
                 io_generator,
                 "ICA",
@@ -172,27 +176,7 @@ def denoise(
     mmix_orig = mmix.copy()
 
     if cmdline_args.tedort:
-        acc_idx = comptable.loc[~comptable.classification.str.contains("rejected")].index.values
-        rej_idx = comptable.loc[comptable.classification.str.contains("rejected")].index.values
-        acc_ts = mmix[:, acc_idx]
-        rej_ts = mmix[:, rej_idx]
-        betas = np.linalg.lstsq(acc_ts, rej_ts, rcond=None)[0]
-        pred_rej_ts = np.dot(acc_ts, betas)
-        resid = rej_ts - pred_rej_ts
-        mmix[:, rej_idx] = resid
-        comp_names = [
-            tedana.io.add_decomp_prefix(comp, prefix="ica", max_value=comptable.index.max())
-            for comp in comptable.index.values
-        ]
-
-        mixing_df = pd.DataFrame(data=mmix, columns=comp_names)
-        io_generator.save_file(mixing_df, "ICA orthogonalized mixing tsv")
-
-        RepLGR.info(
-            "Rejected components' time series were then "
-            "orthogonalized with respect to accepted components' time "
-            "series."
-        )
+        tedort(comptable, mmix, io_generator)
 
     tedana.io.writeresults(
         data_oc,
@@ -244,18 +228,6 @@ def denoise(
             png_cmap=cmdline_args.png_cmap,
         )
 
-        img_t_r = io_generator.reference_img.header.get_zooms()[-1]
-        if img_t_r == 0:
-            raise IOError(
-                "Dataset has a TR of 0. This indicates incorrect"
-                " header information. To correct this, we recommend"
-                " using this snippet:"
-                "\n"
-                "https://gist.github.com/jbteves/032c87aeb080dd8de8861cb151bff5d6"
-                "\n"
-                "to correct your TR to the value it should be."
-            )
-
         if sys.version_info.major == 3 and sys.version_info.minor < 6:
             LGR.warn(
                 "Reports requested but Python version is less than "
@@ -263,23 +235,30 @@ def denoise(
             )
         else:
             LGR.info("Generating dynamic report")
+            img_t_r = io_generator.reference_img.header.get_zooms()[-1]
             tedana.reporting.generate_report(io_generator, tr=img_t_r)
     LGR.info("workflow completed for " + data_oc_label)
 
 
-"""
-# Create an adaptive mask with at least 1 good echo, for denoising
-    mask_denoise, masksum_denoise = utils.make_adaptive_mask(
-        catd,
-        mask=mask,
-        getsum=True,
-        threshold=1,
-    )
-    LGR.debug("Retaining {}/{} samples for denoising".format(mask_denoise.sum(), n_samp))
-    io_generator.save_file(masksum_denoise, "adaptive mask img")
+def tedort(comptable, mmix, io_generator):
+    acc_idx = comptable.loc[~comptable.classification.str.contains("rejected")].index.values
+    rej_idx = comptable.loc[comptable.classification.str.contains("rejected")].index.values
+    acc_ts = mmix[:, acc_idx]
+    rej_ts = mmix[:, rej_idx]
+    betas = np.linalg.lstsq(acc_ts, rej_ts, rcond=None)[0]
+    pred_rej_ts = np.dot(acc_ts, betas)
+    resid = rej_ts - pred_rej_ts
+    mmix[:, rej_idx] = resid
+    comp_names = [
+        tedana.io.add_decomp_prefix(comp, prefix="ica", max_value=comptable.index.max())
+        for comp in comptable.index.values
+    ]
 
-    # Create an adaptive mask with at least 3 good echoes, for classification
-    masksum_clf = masksum_denoise.copy()
-    masksum_clf[masksum_clf < 3] = 0
-    mask_clf = masksum_clf.astype(bool)
-"""
+    mixing_df = pd.DataFrame(data=mmix, columns=comp_names)
+    io_generator.save_file(mixing_df, "ICA orthogonalized mixing tsv")
+
+    RepLGR.info(
+        "Rejected components' time series were then "
+        "orthogonalized with respect to accepted components' time "
+        "series."
+    )

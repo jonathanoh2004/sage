@@ -5,6 +5,7 @@ Notebooks/
 *.tsv
 *.txt
 *.json
+*.ipynb
 figures/
 output_archive/
 Matlab/

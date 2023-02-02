@@ -39,6 +39,10 @@
         "orig": "adaptive_mask",
         "bidsv1.5.0": "desc-adaptiveGoodSignal_mask"
     },
+    "adaptive mask clf img": {
+        "orig": "adaptive_mask_clf",
+        "bidsv1.5.0": "desc-adaptiveGoodSignal_clf_mask"
+    },
     "combined img": {
         "orig": "ts_OC",
         "bidsv1.5.0": "desc-optcom_bold"

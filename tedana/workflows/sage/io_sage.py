@@ -5,7 +5,7 @@ import numpy as np
 import nilearn.image
 import tedana.io
 import tedana.utils
-from tedana.workflows.sage import config_sage
+from tedana.workflows.sage import config_sage, masking_sage
 
 LGR = logging.getLogger("GENERAL")
 
@@ -24,35 +24,38 @@ def get_data(data, tes, tslice=None):
     return data, ref_img
 
 
-def get_mask(mask, data):
-    if mask is not None:
-        # load provided mask
-        mask = nilearn.image.load_img(mask).get_fdata().reshape(-1).astype(bool)
+def get_mask(data, mask_type, mask_file_name, ref_img, getsum=False, threshold=1):
+    if mask_type in ["custom", "custom_restricted"]:
+        if mask_file_name is None:
+            raise ValueError(
+                'Mask must be provided when mask_type is "custom" or "custom_restricted"'
+            )
+        mask_res = nilearn.image.load_img(mask_file_name).get_fdata().reshape(-1)
+    elif mask_type in ["tedana", "tedana_adaptive"]:
+        mask = (
+            nilearn.image.load_img(mask_file_name).get_fdata().reshape(-1)
+            if mask_file_name is not None
+            else None
+        )
+        # create an adaptive mask with at least 1 good echo the tedana way
+        mask_res, _ = masking_sage.make_adaptive_mask(
+            data,
+            mask=mask,
+            getsum=getsum,
+            threshold=threshold,
+        )
+    elif mask_type == "compute_epi_mask":
+        mask_res = masking_sage.get_tedana_default_mask(ref_img, data)
     else:
-        # include all voxels
-        mask = np.ones(data.shape[0]).astype(bool)
-    return mask
+        mask_res = np.ones(data.shape[0])
+    mask_res = mask_res.astype(bool)
+    return mask_res
 
 
 def get_gscontrol(gscontrol):
     if not isinstance(gscontrol, list):
         gscontrol = [gscontrol]
     return gscontrol
-
-
-def get_mixm(mixm, io_generator):
-    if mixm is not None and os.path.isfile(mixm):
-        mixm = os.path.abspath(mixm)
-        # Allow users to re-run on same folder
-        mixing_name = io_generator.get_name("ICA mixing tsv")
-        if mixm != mixing_name:
-            shutil.copyfile(mixm, mixing_name)
-            shutil.copyfile(mixm, os.path.join(io_generator.out_dir, os.path.basename(mixm)))
-        return mixm
-    elif mixm is not None:
-        raise IOError("Argument 'mixm' must be an existing file.")
-    else:
-        return None
 
 
 def get_rerun_maps(cmdline_args, ref_img):
@@ -111,16 +114,19 @@ def get_rerun_maps(cmdline_args, ref_img):
     return rerun_imgs
 
 
-def get_io_generator(ref_img, convention, out_dir, prefix, verbose):
-    io_generator = tedana.io.OutputGenerator(
-        ref_img,
-        convention=convention,
-        out_dir=out_dir,
-        prefix=prefix,
-        config="auto",
-        verbose=verbose,
-    )
-    return io_generator
+def get_mixm(mixm, io_generator):
+    if mixm is not None and os.path.isfile(mixm):
+        mixm = os.path.abspath(mixm)
+        # Allow users to re-run on same folder
+        mixing_name = io_generator.get_name("ICA mixing tsv")
+        if mixm != mixing_name:
+            shutil.copyfile(mixm, mixing_name)
+            shutil.copyfile(mixm, os.path.join(io_generator.out_dir, os.path.basename(mixm)))
+        return mixm
+    elif mixm is not None:
+        raise IOError("Argument 'mixm' must be an existing file.")
+    else:
+        return None
 
 
 def save_maps(img_maps, img_keys, io_generator):
@@ -156,14 +162,27 @@ def gen_sub_dirs(sub_dirs):
     return nested_dir
 
 
-""" SCRAP
-io_generator.save_file(s0_I_maps, get_output_key("s0I"))
-    if s0_II_maps is not None:
-        io_generator.save_file(s0_II_maps, get_output_key("s0II"))
-    if delta_maps is not None:
-        io_generator.save_file(delta_maps, get_output_key("delta"))
-    io_generator.save_file(t2star_maps, get_output_key("t2star"))
-    io_generator.save_file(t2_maps, get_output_key("t2"))
-    if rmspe is not None:
-        io_generator.save_file(rmspe, get_output_key("rmspe"))
-"""
+def get_io_generator(ref_img, convention, out_dir, prefix, verbose):
+    io_generator = tedana.io.OutputGenerator(
+        ref_img,
+        convention=convention,
+        out_dir=out_dir,
+        prefix=prefix,
+        config="auto",
+        verbose=verbose,
+    )
+    return io_generator
+
+
+def check_header(io_generator):
+    img_t_r = io_generator.reference_img.header.get_zooms()[-1]
+    if img_t_r == 0:
+        raise IOError(
+            "Dataset has a TR of 0. This indicates incorrect"
+            " header information. To correct this, we recommend"
+            " using this snippet:"
+            "\n"
+            "https://gist.github.com/jbteves/032c87aeb080dd8de8861cb151bff5d6"
+            "\n"
+            "to correct your TR to the value it should be."
+        )
