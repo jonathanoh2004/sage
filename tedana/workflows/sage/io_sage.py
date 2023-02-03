@@ -58,6 +58,11 @@ def get_gscontrol(gscontrol):
     return gscontrol
 
 
+def get_sub_dir(cmdline_args):
+    sub_dir = gen_sub_dirs([cmdline_args.out_dir, config_sage.get_subdir(cmdline_args.fittype)])
+    return sub_dir
+
+
 def get_rerun_maps(cmdline_args, ref_img):
     """
     Used to load T2* and T2 maps and optcoms when --rerun-dir
@@ -66,7 +71,7 @@ def get_rerun_maps(cmdline_args, ref_img):
     """
     rerun_keys = config_sage.get_keys_rerun()
     output_keys = config_sage.get_keys_output()
-    optcom_keys = config_sage.get_keys_optcoms()
+    # optcom_keys = config_sage.get_keys_optcoms()
 
     rerun_maps_dir = gen_sub_dirs([cmdline_args.rerun_maps_dir])
 
@@ -84,19 +89,19 @@ def get_rerun_maps(cmdline_args, ref_img):
             rerun_files = {
                 k: os.path.abspath(io_generator.get_name(output_keys[k]))
                 for k in rerun_keys
-                if k not in optcom_keys
+                # if k not in optcom_keys
             }
-            for optcom_key in optcom_keys:
-                io_generator = get_io_generator(
-                    ref_img=ref_img,
-                    convention=cmdline_args.convention,
-                    out_dir=os.path.join(rerun_maps_dir, optcom_key),
-                    prefix=cmdline_args.prefix,
-                    verbose=cmdline_args.verbose,
-                )
-                rerun_files[optcom_key] = os.path.abspath(
-                    io_generator.get_name(output_keys[optcom_key])
-                )
+            # for optcom_key in optcom_keys:
+            #     io_generator = get_io_generator(
+            #         ref_img=ref_img,
+            #         convention=cmdline_args.convention,
+            #         out_dir=os.path.join(rerun_maps_dir, optcom_key),
+            #         prefix=cmdline_args.prefix,
+            #         verbose=cmdline_args.verbose,
+            #     )
+            #     rerun_files[optcom_key] = os.path.abspath(
+            #         io_generator.get_name(output_keys[optcom_key])
+            #     )
 
             if not all([os.path.isfile(rerun_file) for rerun_file in rerun_files.values()]):
                 raise ValueError(

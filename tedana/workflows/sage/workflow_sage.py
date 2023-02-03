@@ -39,9 +39,7 @@ def workflow_sage(cmdline_args):
 
     mask = io_sage.get_mask(data, cmdline_args.mask_type, cmdline_args.mask_file_name, ref_img)
 
-    sub_dir = io_sage.gen_sub_dirs(
-        [cmdline_args.out_dir, config_sage.get_subdir(cmdline_args.fittype)]
-    )
+    sub_dir = io_sage.get_sub_dir(cmdline_args)
 
     io_generator = io_sage.get_io_generator(
         ref_img=ref_img,
@@ -97,6 +95,8 @@ def workflow_sage(cmdline_args):
         )
 
         clean_sage.clean_optcoms(optcom_t2star, optcom_t2)
+
+        io_sage.save_maps([optcom_t2star, optcom_t2], config_sage.get_keys_optcoms(), io_generator)
 
     ########################################################################################
     ####################### TEDANA DENOISING ###############################################

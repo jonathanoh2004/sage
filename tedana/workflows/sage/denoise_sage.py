@@ -12,7 +12,7 @@ import tedana.reporting
 import tedana.io
 import tedana.stats
 import tedana.utils
-from tedana.workflows.sage import config_sage, io_sage
+from tedana.workflows.sage import config_sage
 
 LGR = logging.getLogger("GENERAL")
 RepLGR = logging.getLogger("REPORT")
@@ -47,8 +47,6 @@ def denoise(
     # regress out global signal unless explicitly not desired
     if "gsr" in gscontrol:
         data, data_oc = tedana.gscontrol.gscontrol_raw(data_orig, data_oc, n_echos, io_generator)
-
-    io_sage.save_maps([data_oc], [data_oc_label], io_generator)
 
     if mixm is None:
 
@@ -200,10 +198,13 @@ def denoise(
     with open(repname, "w") as fo:
         fo.write(report)
 
-    description_references = config_sage.get_description_references(report)
-    # Collect BibTeX entries for cited papers
-    with open(bibtex_file, "w") as fo:
-        fo.write(description_references)
+    try:
+        description_references = config_sage.get_description_references(report)
+        # Collect BibTeX entries for cited papers
+        with open(bibtex_file, "w") as fo:
+            fo.write(description_references)
+    except FileNotFoundError:
+        LGR.warning("Unable to find BibTeX references for citations.")
 
     if not cmdline_args.no_reports:
         LGR.info("Making figures folder with static component maps and timecourse plots.")
