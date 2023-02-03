@@ -1,2 +1,2 @@
-# SAGE Extenion of tedana: TE Dependent ANAlysis
+# SAGE Extension of tedana: TE Dependent ANAlysis
 
