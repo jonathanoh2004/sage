@@ -1,6 +1,8 @@
 """
 Run the "canonical" TE-Dependent ANAlysis workflow.
 """
+
+
 import argparse
 import datetime
 import json
@@ -16,8 +18,6 @@ import pandas as pd
 from nilearn.masking import compute_epi_mask
 from scipy import stats
 from threadpoolctl import threadpool_limits
-
-import tedana.gscontrol as gsc
 from tedana import (
     __version__,
     combine,
@@ -28,6 +28,7 @@ from tedana import (
     reporting,
     selection,
     utils,
+    gscontrol as gsc,
 )
 from tedana.bibtex import get_description_references
 from tedana.stats import computefeats2

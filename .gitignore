@@ -1,3 +1,19 @@
+.gitignore
+tedana/resources/gendata/*.gz
+Notebooks/
+*.nii.gz
+*.tsv
+*.txt
+*.json
+*.ipynb
+figures/
+output_archive/
+Matlab/
+outputs/
+tedana.zip
+
+tedana/tests/data_sage/
+
 .DS_Store
 docs/generated/
 .pytest_cache/
@@ -12,7 +28,6 @@ __pycache__/
 
 # Distribution / packaging
 .Python
-env/
 build/
 develop-eggs/
 dist/
@@ -54,6 +69,9 @@ coverage.xml
 *.mo
 *.pot
 
+# Resources
+resources/gendata/
+
 # Django stuff:
 *.log
 local_settings.py
@@ -90,6 +108,7 @@ celerybeat-schedule
 .venv
 venv/
 ENV/
+env/
 
 # Spyder project settings
 .spyderproject

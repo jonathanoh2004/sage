@@ -13,9 +13,7 @@ def _combine_t2s(data, tes, ft2s, report=True):
     """
     Combine data across echoes using weighted averaging according to voxel-
     (and sometimes volume-) wise estimates of T2*.
-
     This method was proposed in :footcite:t:`posse1999enhancement`.
-
     Parameters
     ----------
     data : (M x E x T) array_like
@@ -26,12 +24,10 @@ def _combine_t2s(data, tes, ft2s, report=True):
         Either voxel-wise or voxel- and volume-wise estimates of T2*.
     report : bool, optional
         Whether to log a description of this step or not. Default is True.
-
     Returns
     -------
     combined : (M x T) :obj:`numpy.ndarray`
         Data combined across echoes according to T2* estimates.
-
     References
     ----------
     .. footbibliography::
@@ -65,9 +61,7 @@ def _combine_paid(data, tes, report=True):
     Combine data across echoes using SNR/signal and TE via the
     parallel-acquired inhomogeneity desensitized (PAID) ME-fMRI combination
     method.
-
     This method was first proposed in :footcite:t:`poser2006bold`.
-
     Parameters
     ----------
     data : (M x E x T) array_like
@@ -76,12 +70,10 @@ def _combine_paid(data, tes, report=True):
         Echo times in milliseconds.
     report : bool, optional
         Whether to log a description of this step or not. Default is True.
-
     Returns
     -------
     combined : (M x T) :obj:`numpy.ndarray`
         Data combined across echoes according to SNR/signal.
-
     References
     ----------
     .. footbibliography::
@@ -107,7 +99,6 @@ def make_optcom(data, tes, adaptive_mask, t2s=None, combmode="t2s", verbose=True
     across at least three echos. If the number of echos providing reliable signal is greater
     than three but less than the total number of collected echos, we assume that later
     echos do not provided meaningful signal.
-
     Parameters
     ----------
     data : (S x E x T) :obj:`numpy.ndarray`
@@ -127,30 +118,24 @@ def make_optcom(data, tes, adaptive_mask, t2s=None, combmode="t2s", verbose=True
         is not required. Default is 't2s'.
     verbose : :obj:`bool`, optional
         Whether to print status updates. Default is True.
-
     Returns
     -------
     combined : (S x T) :obj:`numpy.ndarray`
         Optimally combined data.
-
     Notes
     -----
     This function supports both the ``'t2s'`` method :footcite:p:`posse1999enhancement`
     and the ``'paid'`` method :footcite:p:`poser2006bold`.
     The ``'t2s'`` method operates according to the following logic:
-
     1.  Estimate voxel- and TE-specific weights based on estimated :math:`T_2^*`:
-
             .. math::
                 w(T_2^*)_n = \\frac{TE_n * exp(\\frac{-TE}\
                 {T_{2(est)}^*})}{\\sum TE_n * exp(\\frac{-TE}{T_{2(est)}^*})}
     2.  Perform weighted average per voxel and TR across TEs based on weights
         estimated in the previous step.
-
     References
     ----------
     .. footbibliography::
-
     See Also
     --------
     :func:`tedana.utils.make_adaptive_mask` : The function used to create the ``adaptive_mask``

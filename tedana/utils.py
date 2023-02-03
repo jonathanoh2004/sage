@@ -20,8 +20,8 @@ def reshape_niimg(data):
 
     Parameters
     ----------
-    data : (X x Y x Z [x T]) array_like or img_like object
-        Data array or data file to be loaded and reshaped
+    data : (X x Y x Z [x T]) array_like or img_like object or str
+        Data array or name of data file to be loaded and reshaped
 
     Returns
     -------

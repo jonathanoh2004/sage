@@ -1,19 +1,59 @@
 {
+    "t2star img": {
+        "orig": "t2starvG",
+        "bidsv1.5.0": "T2star_Map"
+    },
+    "t2 img": {
+        "orig": "t2vG",
+        "bidsv1.5.0": "T2_Map"
+    },
+    "s0 img": {
+        "orig": "s0vG",
+        "bidsv1.5.0": "S0_Map"
+    },
+    "s0I img": {
+        "orig": "s0IvG",
+        "bidsv1.5.0": "S0I_Map"
+    },
+    "s0II img": {
+        "orig": "s0IIvG",
+        "bidsv1.5.0": "S0II_Map"
+    },
+    "delta img": {
+        "orig": "deltavG",
+        "bidsv1.5.0": "Delta_Map"
+    },
+    "rmspe img": {
+        "orig": "rmspevG",
+        "bidsv1.5.0": "RMSPE_Map"
+    },
+    "optcom t2star img": {
+        "orig": "optcomt2starvG",
+        "bidsv1.5.0": "Optcom_T2star_Signal"
+    },
+    "optcom t2 img": {
+        "orig": "optcomt2vG",
+        "bidsv1.5.0": "Optcom_T2_Signal"
+    },
     "adaptive mask img": {
         "orig": "adaptive_mask",
         "bidsv1.5.0": "desc-adaptiveGoodSignal_mask"
     },
-    "t2star img": {
-        "orig": "t2svG",
-        "bidsv1.5.0": "T2starmap"
-    },
-    "s0 img": {
-        "orig": "s0vG",
-        "bidsv1.5.0": "S0map"
+    "adaptive mask clf img": {
+        "orig": "adaptive_mask_clf",
+        "bidsv1.5.0": "desc-adaptiveGoodSignal_clf_mask"
     },
     "combined img": {
         "orig": "ts_OC",
         "bidsv1.5.0": "desc-optcom_bold"
+    },
+    "combined T2* img": {
+        "orig": "t2star_OC",
+        "bidsv1.5.0": "desc-optcom_T2star"
+    },
+    "combined T2 img": {
+        "orig": "t2_OC",
+        "bidsv1.5.0": "desc-optcom_T2"
     },
     "ICA components img": {
         "orig": "ica_components",

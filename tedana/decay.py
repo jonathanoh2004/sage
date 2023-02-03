@@ -17,14 +17,12 @@ def _apply_t2s_floor(t2s, echo_times):
     """
     Apply a floor to T2* values to prevent zero division errors during
     optimal combination.
-
     Parameters
     ----------
     t2s : (S,) array_like
         T2* estimates.
     echo_times : (E,) array_like
         Echo times in milliseconds.
-
     Returns
     -------
     t2s_corrected : (S,) array_like
@@ -58,7 +56,6 @@ def _apply_t2s_floor(t2s, echo_times):
 def monoexponential(tes, s0, t2star):
     """
     Specifies a monoexponential model for use with scipy curve fitting
-
     Parameters
     ----------
     tes : (E,) :obj:`list`
@@ -67,7 +64,6 @@ def monoexponential(tes, s0, t2star):
         Initial signal parameter
     t2star : :obj:`float`
         T2* parameter
-
     Returns
     -------
     :obj:`float`
@@ -79,7 +75,6 @@ def monoexponential(tes, s0, t2star):
 def fit_monoexponential(data_cat, echo_times, adaptive_mask, report=True):
     """
     Fit monoexponential decay model with nonlinear curve-fitting.
-
     Parameters
     ----------
     data_cat : (S x E x T) :obj:`numpy.ndarray`
@@ -93,16 +88,13 @@ def fit_monoexponential(data_cat, echo_times, adaptive_mask, report=True):
         For more information on thresholding, see `make_adaptive_mask`.
     report : bool, optional
         Whether to log a description of this step or not. Default is True.
-
     Returns
     -------
     t2s_limited, s0_limited, t2s_full, s0_full : (S,) :obj:`numpy.ndarray`
         T2* and S0 estimate maps.
-
     Notes
     -----
     This method is slower, but more accurate, than the log-linear approach.
-
     See Also
     --------
     :func:`tedana.utils.make_adaptive_mask` : The function used to create the ``adaptive_mask``
@@ -197,14 +189,12 @@ def fit_monoexponential(data_cat, echo_times, adaptive_mask, report=True):
 
 def fit_loglinear(data_cat, echo_times, adaptive_mask, report=True):
     """Fit monoexponential decay model with log-linear regression.
-
     The monoexponential decay function is fitted to all values for a given
     voxel across TRs, per TE, to estimate voxel-wise :math:`S_0` and :math:`T_2^*`.
     At a given voxel, only those echoes with "good signal", as indicated by the
     value of the voxel in the adaptive mask, are used.
     Therefore, for a voxel with an adaptive mask value of five, the first five
     echoes would be used to estimate T2* and S0.
-
     Parameters
     ----------
     data_cat : (S x E x T) :obj:`numpy.ndarray`
@@ -218,12 +208,10 @@ def fit_loglinear(data_cat, echo_times, adaptive_mask, report=True):
         For more information on thresholding, see `make_adaptive_mask`.
     report : :obj:`bool`, optional
         Whether to log a description of this step or not. Default is True.
-
     Returns
     -------
     t2s_limited, s0_limited, t2s_full, s0_full: (S,) :obj:`numpy.ndarray`
         T2* and S0 estimate maps.
-
     Notes
     -----
     The approach used in this function involves transforming the raw signal values
@@ -232,7 +220,6 @@ def fit_loglinear(data_cat, echo_times, adaptive_mask, report=True):
     This results in two parameter estimates: one for the slope  and one for the intercept.
     The slope estimate is inverted (i.e., 1 / slope) to get  :math:`T_2^*`,
     while the intercept estimate is exponentiated (i.e., e^intercept) to get :math:`S_0`.
-
     This method is faster, but less accurate, than the nonlinear approach.
     """
     if report:
@@ -300,7 +287,6 @@ def fit_loglinear(data_cat, echo_times, adaptive_mask, report=True):
 def fit_decay(data, tes, mask, adaptive_mask, fittype, report=True):
     """
     Fit voxel-wise monoexponential decay models to `data`
-
     Parameters
     ----------
     data : (S x E [x T]) array_like
@@ -320,7 +306,6 @@ def fit_decay(data, tes, mask, adaptive_mask, fittype, report=True):
         The type of model fit to use
     report : bool, optional
         Whether to log a description of this step or not. Default is True.
-
     Returns
     -------
     t2s_limited : (S,) :obj:`numpy.ndarray`
@@ -337,7 +322,6 @@ def fit_decay(data, tes, mask, adaptive_mask, fittype, report=True):
         Full S0 map. For voxels affected by dropout, with good signal from
         only one echo, the full map uses the S0 estimate from the first two
         echoes.
-
     Notes
     -----
     This function replaces infinite values in the :math:`T_2^*` map with 500 and
@@ -345,7 +329,6 @@ def fit_decay(data, tes, mask, adaptive_mask, fittype, report=True):
     Additionally, very small :math:`T_2^*` values above zero are replaced with a floor
     value to prevent zero-division errors later on in the workflow.
     It also replaces NaN values in the :math:`S_0` map with 0.
-
     See Also
     --------
     :func:`tedana.utils.make_adaptive_mask` : The function used to create the ``adaptive_mask``
@@ -409,7 +392,6 @@ def fit_decay(data, tes, mask, adaptive_mask, fittype, report=True):
 def fit_decay_ts(data, tes, mask, adaptive_mask, fittype):
     """
     Fit voxel- and timepoint-wise monoexponential decay models to `data`
-
     Parameters
     ----------
     data : (S x E x T) array_like
@@ -427,7 +409,6 @@ def fit_decay_ts(data, tes, mask, adaptive_mask, fittype):
         For more information on thresholding, see `make_adaptive_mask`.
     fittype : :obj: `str`
         The type of model fit to use
-
     Returns
     -------
     t2s_limited_ts : (S x T) :obj:`numpy.ndarray`
@@ -444,7 +425,6 @@ def fit_decay_ts(data, tes, mask, adaptive_mask, fittype):
         Full S0 timeseries. For voxels affected by dropout, with good signal
         from only one echo, the full timeseries uses the single echo's value
         at that voxel/volume.
-
     See Also
     --------
     :func:`tedana.utils.make_adaptive_mask` : The function used to create the ``adaptive_mask``

@@ -7,9 +7,9 @@ import os.path as op
 import numpy as np
 import pytest
 
-from tedana import combine
+from tedana import combine, io
 from tedana import decay as me
-from tedana import io, utils
+from tedana import utils
 from tedana.tests.utils import get_test_data_path
 
 

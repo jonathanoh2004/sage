@@ -273,7 +273,9 @@ def threshold_to_match(maps, n_sig_voxels, mask, ref_img, csize=None):
         # of significant voxels from the F-statistic maps. This threshold
         # will be relaxed until the number of significant voxels from both
         # maps is roughly equal.
-        ccimg = io.new_nii_like(ref_img, utils.unmask(stats.rankdata(abs_maps[:, i_comp]), mask))
+        ccimg = io.new_nii_like(
+            ref_img, utils.unmask(stats.rankdata(abs_maps[:, i_comp]), mask)
+        )
         step = int(n_sig_voxels[i_comp] / 10)
         rank_thresh = n_voxels - n_sig_voxels[i_comp]
 

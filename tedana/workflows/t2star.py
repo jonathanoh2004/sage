@@ -251,7 +251,7 @@ def t2smap_workflow(
         config="auto",
         make_figures=False,
     )
-    n_samp, n_echos, n_vols = catd.shape
+    _, n_echos, _ = catd.shape
     LGR.debug("Resulting data shape: {}".format(catd.shape))
 
     if mask is None:

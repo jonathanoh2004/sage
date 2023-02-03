@@ -155,7 +155,7 @@ class TestT2smap:
                 out_dir,
             ]
         )
-        workflows.t2smap._main(args)
+        workflows.t2star._main(args)
 
         # Check outputs
         img = nib.load(op.join(out_dir, "T2starmap.nii.gz"))
