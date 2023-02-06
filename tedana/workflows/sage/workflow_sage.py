@@ -102,6 +102,9 @@ def workflow_sage(cmdline_args):
     ####################### TEDANA DENOISING ###############################################
     ########################################################################################
 
+    masksum = mask * n_echos
+    mask_clf, masksum_clf = masking_sage.get_adaptive_mask_clf(mask, masksum, data, cmdline_args)
+
     for data_oc, data_oc_label in zip([optcom_t2star, optcom_t2], config_sage.get_keys_optcoms()):
 
         sub_dir_tedana = io_sage.gen_sub_dirs([sub_dir, data_oc_label])
@@ -117,11 +120,6 @@ def workflow_sage(cmdline_args):
             out_dir=sub_dir_tedana,
             prefix=cmdline_args.prefix,
             verbose=cmdline_args.verbose,
-        )
-
-        masksum = mask * n_echos
-        mask_clf, masksum_clf = masking_sage.get_adaptive_mask_clf(
-            mask, masksum, data, cmdline_args
         )
 
         mixm = io_sage.get_mixm(cmdline_args.rerun_mixm, io_generator)
