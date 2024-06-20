@@ -21,7 +21,7 @@ class Cmdline_Args:
         data_files_names,
         echo_times,
         mask_file_name=None,
-        mask_type="tedana",
+        mask_type="compute_epi_mask",
         clean_maps_tedana=False,
         fittype="loglin",
         out_dir="outputs",
@@ -140,7 +140,7 @@ class Cmdline_Args:
                 'will be all-inclusive. With a mask_type of "custom" or "custom_restricted", a '
                 "mask must be provided."
             ),
-            default="tedana",
+            default="compute_epi_mask",
         )
         parser.add_argument(
             "--clean-maps-tedana",

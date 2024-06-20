@@ -268,7 +268,7 @@ class OutputGenerator:
         data_type = type(data)
         if not isinstance(data, pd.DataFrame):
             raise TypeError(f"data must be pd.Data, not type {data_type}.")
-        data.to_csv(name, sep="\t", line_terminator="\n", na_rep="n/a", index=False)
+        data.to_csv(name, sep="\t", lineterminator="\n", na_rep="n/a", index=False)
 
 
 def get_fields(name):
