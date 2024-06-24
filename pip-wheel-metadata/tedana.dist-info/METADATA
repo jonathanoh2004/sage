@@ -1,0 +1,70 @@
+Metadata-Version: 2.1
+Name: tedana
+Version: 0+untagged.1176.g09b2981.dirty
+Summary: TE-Dependent Analysis (tedana) of multi-echo functional magnetic resonance imaging (fMRI) data.
+Home-page: https://github.com/ME-ICA/tedana
+Author: tedana developers
+Author-email: emd222@cornell.edu
+Maintainer: Elizabeth DuPre
+Maintainer-email: emd222@cornell.edu
+License: LGPL 2.1
+Platform: UNKNOWN
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Science/Research
+Classifier: Topic :: Scientific/Engineering :: Information Analysis
+Classifier: License :: OSI Approved :: GNU Library or Lesser General Public License (LGPL)
+Classifier: Programming Language :: Python :: 3.6
+Classifier: Programming Language :: Python :: 3.7
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Requires-Python: >=3.6
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: bokeh <2.3.0
+Requires-Dist: mapca >=0.0.3
+Requires-Dist: matplotlib
+Requires-Dist: nibabel >=2.5.1
+Requires-Dist: nilearn >=0.7
+Requires-Dist: numpy >=1.16
+Requires-Dist: pandas >=0.24
+Requires-Dist: scikit-learn >=0.21
+Requires-Dist: scipy >=1.2.0
+Requires-Dist: threadpoolctl
+Requires-Dist: jinja2 ==3.0.1
+Provides-Extra: all
+Requires-Dist: sphinx >=1.5.3 ; extra == 'all'
+Requires-Dist: sphinx-copybutton ; extra == 'all'
+Requires-Dist: sphinx-rtd-theme ; extra == 'all'
+Requires-Dist: sphinx-argparse ; extra == 'all'
+Requires-Dist: sphinxcontrib-bibtex ; extra == 'all'
+Requires-Dist: codecov ; extra == 'all'
+Requires-Dist: coverage <5.0 ; extra == 'all'
+Requires-Dist: flake8 >=3.7 ; extra == 'all'
+Requires-Dist: flake8-black ; extra == 'all'
+Requires-Dist: flake8-isort ; extra == 'all'
+Requires-Dist: pytest ; extra == 'all'
+Requires-Dist: pytest-cov ; extra == 'all'
+Requires-Dist: requests ; extra == 'all'
+Requires-Dist: sympy ; extra == 'all'
+Provides-Extra: doc
+Requires-Dist: sphinx >=1.5.3 ; extra == 'doc'
+Requires-Dist: sphinx-copybutton ; extra == 'doc'
+Requires-Dist: sphinx-rtd-theme ; extra == 'doc'
+Requires-Dist: sphinx-argparse ; extra == 'doc'
+Requires-Dist: sphinxcontrib-bibtex ; extra == 'doc'
+Provides-Extra: tests
+Requires-Dist: codecov ; extra == 'tests'
+Requires-Dist: coverage <5.0 ; extra == 'tests'
+Requires-Dist: flake8 >=3.7 ; extra == 'tests'
+Requires-Dist: flake8-black ; extra == 'tests'
+Requires-Dist: flake8-isort ; extra == 'tests'
+Requires-Dist: pytest ; extra == 'tests'
+Requires-Dist: pytest-cov ; extra == 'tests'
+Requires-Dist: requests ; extra == 'tests'
+Requires-Dist: sympy ; extra == 'tests'
+
+# SAGE Extension of tedana: TE Dependent ANAlysis
+
+
+
