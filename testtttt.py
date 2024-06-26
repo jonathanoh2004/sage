@@ -74,7 +74,7 @@ def denoise(
         n_restarts = 0
         seed = cmdline_args.fixed_seed
 
-        selector = ComponentSelector("minimal")
+        selector = ComponentSelector()
 
         while keep_restarting:
             mmix, seed = tedana.decomposition.tedica(

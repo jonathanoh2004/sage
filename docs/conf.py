@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 #
 # tedana documentation build configuration file, created by
 # sphinx-quickstart
@@ -27,7 +26,6 @@ sys.path.insert(0, os.path.abspath(os.path.pardir))
 
 from github_link import make_linkcode_resolve
 
-
 # -- General configuration ------------------------------------------------
 
 # If your documentation needs a minimal Sphinx version, state it here.
@@ -42,6 +40,7 @@ add_module_names = False
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
+    "sphinx.ext.napoleon",
     "matplotlib.sphinxext.plot_directive",
     "sphinx.ext.autodoc",
     "sphinx.ext.autosummary",
@@ -49,15 +48,15 @@ extensions = [
     "sphinx.ext.ifconfig",
     "sphinx.ext.intersphinx",
     "sphinx.ext.linkcode",
-    "sphinx.ext.napoleon",
     "sphinx.ext.todo",
     "sphinx_copybutton",
     "sphinxarg.ext",
     "sphinxcontrib.bibtex",  # for foot-citations
 ]
 
-import sphinx
 from distutils.version import LooseVersion
+
+import sphinx
 
 if LooseVersion(sphinx.__version__) < LooseVersion("1.4"):
     extensions.append("sphinx.ext.pngmath")
@@ -96,7 +95,7 @@ release = tedana.__version__
 #
 # This is also used if you do content translation via gettext catalogs.
 # Usually you set "language" from the command line for these cases.
-language = None
+language = "en"
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
@@ -124,6 +123,7 @@ napoleon_use_ivar = True
 napoleon_use_param = False
 napoleon_use_keyword = True
 napoleon_use_rtype = False
+napoleon_custom_sections = ["Generated Files"]
 
 # -- Options for HTML output ----------------------------------------------
 

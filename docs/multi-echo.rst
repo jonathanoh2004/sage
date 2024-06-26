@@ -440,8 +440,25 @@ For single-echo EPI data, that excitation time would be the same regardless of t
 and the same is true when one is collecting multiple echoes after a single excitation pulse.
 Therefore, we suggest using the same slice timing for all echoes in an ME-EPI series.
 
+3. Apply spatial normalization and susceptibility distortion correction consistently across echoes
+==================================================================================================
 
-3. Perform distortion correction, spatial normalization, smoothing, and any rescaling or filtering **after** denoising
+One key feature of susceptibility distortion is that it is primarily a factor of readout pattern and
+total readout time, rather than echo time. This means that, for most multi-echo sequences, even though
+dropout will increase with echo time, distortion will not (at least not to a noticeable/meaningful extent).
+
+For this reason, if you are applying TOPUP-style (blip-up/blip-down) "field maps",
+we recommend using your first echo time, as this will exhibit the least dropout.
+If your first echo time is very short, and exhibits poor gray/white contrast, then a later echo time may
+be preferable. In any case, you should calculate the spatial transform from just one of your echoes and
+apply it across all of them.
+
+Similarly, if spatial normalization to a template is done, the spatial transform should be calculated
+once and the same transformation (ideally one transformation for motion correction, distortion correction,
+and spatial normalization) should be applied to all echoes.
+
+
+4. Perform smoothing, and any rescaling or filtering **after** denoising
 ======================================================================================================================
 
 Any step that will alter the relationship of signal magnitudes between echoes should occur after denoising and combining
@@ -452,18 +469,18 @@ and the subsequent calculation of voxelwise T2* values will be distorted or inco
 time point.
 
 .. note::
-    We are assuming that spatial normalization and distortion correction, particularly non-linear normalization methods
-    with higher order interpolation functions, are likely to distort the relationship between echoes while rigid body
-    motion correction would linearly alter each echo in a similar manner. This assumption has not yet been empirically
-    tested and an affine normalzation with bilinear interpolation may not distort the relationship between echoes.
-    Additionally, there are benefits to applying only one spatial transform to data rather than applying one spatial
-    transform for motion correction and a later transform for normalization and distortion correction. Our advice
-    against doing normalization and distortion correction is a conservative choice and we encourage additional
-    research to better understand how these steps can be applied before denoising.
-
+    Spatial normalization and distortion correction, particularly non-linear normalization methods
+    with higher order interpolation functions to regrid voxels in a new space, may distort the relationship between
+    echoes more than bilinear interpolation. This has the potential to distort the relationship between echoes and
+    there have been anecdotal cases where this might be an issue. Still, since serial spatial transforms spatially
+    smooth the data and most modern pipeline combine all spatial transforms into a single step, we recommend doing
+    these steps before running denoising. Particularly for data with high intensity heterogeneity between the surface
+    and center of the brain, we recommend checking if distoration correction and normalization adversely affect the
+    relationship between echoes.
 
 .. _fMRIPrep: https://fmriprep.readthedocs.io
 .. _afni_proc.py: https://afni.nimh.nih.gov/pub/dist/doc/program_help/afni_proc.py.html
+
 
 *****************
 General Resources
@@ -501,13 +518,16 @@ Videos
 * A `series of lectures from the OHBM 2017 multi-echo session`_ on multiple facets of multi-echo data analysis
 * | Multi-echo fMRI lecture from the `2018 NIH FMRI Summer Course`_ by Javier Gonzalez-Castillo
   | `Slides from 2018 NIH FMRI Summer Course`_
-* An `NIMH Center for Multimodal Neuroimaging video`_ by the Section on Functional Imaging Methods
+* NIMH Center for Multimodal Neuroimaging `Advantages of multi-echo fMRI`_ (2019) by Dan Handwerker, Javier Gonzalez-Castillo, and Vinai Roopchansingh
+* | MRI Together 2022 Conference Presentations by Eneko Uruñuela
+  | Tedana: Analysis of echo-time dependent fMRI data (`recording <https://youtu.be/4wsEodepyI8?t=96>`_, `slides  <https://eurunuela.github.io/tedana_MRITogether_2022>`_)
+  | A tour of tedana (`tour recording <https://youtu.be/P4cV-sGeltk?t=10>`_, `tour slides <https://eurunuela.github.io/tedana_tutorial_MRITogether_2022/>`_)
 
 .. _educational session from OHBM 2017: https://www.pathlms.com/ohbm/courses/5158/sections/7788/video_presentations/75977
 .. _series of lectures from the OHBM 2017 multi-echo session: https://www.pathlms.com/ohbm/courses/5158/sections/7822
 .. _2018 NIH FMRI Summer Course: https://fmrif.nimh.nih.gov/course/fmrif_course/2018/14_Javier_20180713
 .. _Slides from 2018 NIH FMRI Summer Course: https://fmrif.nimh.nih.gov/COURSE/fmrif_course/2018/content/14_Javier_20180713.pdf
-.. _NIMH Center for Multimodal Neuroimaging video: https://youtu.be/G1Ftd2IwF14
+.. _Advantages of multi-echo fMRI: https://youtu.be/G1Ftd2IwF14
 
 
 Multi-echo preprocessing software
@@ -525,6 +545,11 @@ timeseries.
 For more details, see the `fmriprep workflows page`_ and :ref:`collecting fMRIPrepped data`.
 
 .. _fmriprep workflows page: https://fmriprep.readthedocs.io/en/stable/workflows.html
+
+`fmrwhy`_ runs BIDS-compatible fMRI analysis with SPM12 and supports multi-echo data,
+but it is no longer being actively maintained.
+
+.. _fmrwhy: https://fmrwhy.readthedocs.io
 
 Currently SPM and FSL do not natively support multi-echo fmri data processing.
 

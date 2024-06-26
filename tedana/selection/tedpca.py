@@ -1,13 +1,12 @@
-"""
-Functions to identify TE-dependent and TE-independent components.
-"""
+"""Functions to identify TE-dependent and TE-independent components."""
+
 import logging
 
 import numpy as np
 
 from tedana import utils
 from tedana.metrics import collect
-from tedana.selection._utils import clean_dataframe, getelbow, getelbow_cons
+from tedana.selection.selection_utils import clean_dataframe, getelbow, getelbow_cons
 from tedana.stats import getfbounds
 
 LGR = logging.getLogger("GENERAL")
@@ -17,8 +16,7 @@ F_MAX = 500
 
 
 def kundu_tedpca(comptable, n_echos, kdaw=10.0, rdaw=1.0, stabilize=False):
-    """
-    Select PCA components using Kundu's decision tree approach.
+    """Select PCA components using Kundu's decision tree approach.
 
     Parameters
     ----------
@@ -123,8 +121,8 @@ def kundu_tedpca(comptable, n_echos, kdaw=10.0, rdaw=1.0, stabilize=False):
 
     n_components = comptable.loc[comptable["classification"] == "accepted"].shape[0]
     LGR.info(
-        "Selected {0} components with Kappa threshold: {1:.02f}, Rho "
-        "threshold: {2:.02f}".format(n_components, kappa_thr, rho_thr)
+        f"Selected {n_components} components with Kappa threshold: {kappa_thr:.02f}, Rho "
+        f"threshold: {rho_thr:.02f}"
     )
 
     # Move decision columns to end
